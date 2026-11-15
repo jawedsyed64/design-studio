@@ -292,7 +292,7 @@
     } else E.sel = ids;
     renderOverlay();
     renderRightPanel();
-    if (E.leftTab === 'layers') renderLeftPanel();
+    if (E.leftTab === 'layers' || (E.leftTab === 'elements' && (lib.cat === 'animations' || lib.cat === 'photos'))) renderLeftPanel();
   }
 
   // ---------------------------------------------------------------- pointer interaction
@@ -850,7 +850,7 @@
     const s = size();
     const w = m.w || 640, hh = m.h || 360;
     const fill = E.doc.format.kind === 'video' && !at;
-    const props = { src: m.ref, poster: m.poster, naturalW: w, naturalH: hh, duration: m.duration, name: m.name || 'Video' };
+    const props = { src: m.ref, poster: m.poster, naturalW: w, naturalH: hh, duration: m.duration, name: m.name || 'Video', credit: m.credit || null };
     let el;
     if (fill) el = D.createElement('video', Object.assign(props, { x: 0, y: 0, w: s.w, h: s.h, fit: 'cover' }));
     else {
@@ -868,7 +868,7 @@
   function addAudioTrack(m) {
     const tl = D.timeline(E.doc);
     const start = E.doc.audio.length ? 0 : tl.scenes[E.pageIndex].start;
-    const tr = D.createAudioTrack({ src: m.ref, name: m.name || 'Audio', duration: m.duration, start, loop: false });
+    const tr = D.createAudioTrack({ src: m.ref, name: m.name || 'Audio', duration: m.duration, start, loop: false, credit: m.credit || null });
     E.doc.audio.push(tr);
     E.sel = [];
     E.selAudio = tr.id;
@@ -1035,6 +1035,8 @@
     rp.appendChild(section('Sound',
       field('Volume', objSlider(tr, 'volume', 0, 100, 100, '%')),
       h('div.grid2', null, field('Fade in (s)', objNum(tr, 'fadeIn', { min: 0, max: 30 })), field('Fade out (s)', objNum(tr, 'fadeOut', { min: 0, max: 30 })))));
+    const cs = creditSection(tr.credit);
+    if (cs) rp.appendChild(cs);
     rp.appendChild(h('div.btn-row.text-btns', null,
       h('button.tog', { on: { click: () => openPreview(tr.start) } }, '▶ Play from here'),
       h('button.tog', { on: { click: () => { E.doc.audio = E.doc.audio.filter((a) => a.id !== tr.id); E.selAudio = null; commit(); renderAll(); } } }, 'Remove from video')));
@@ -1155,34 +1157,433 @@
     lp.appendChild(grid);
   }
 
-  function leftElements(lp) {
-    lp.appendChild(h('h4', null, 'Shapes'));
-    const grid = h('div.el-grid');
-    const preview = (props) => {
-      const el = D.createElement('shape', Object.assign({ x: 6, y: 6, w: 52, h: 52, fill: '#6366f1', strokeWidth: 2 }, props));
-      if (props.shape === 'arrow') { el.h = 30; el.y = 17; }
-      const pg = { background: { type: 'solid', color: 'transparent' }, elements: [el] };
-      return render.renderPage(pg, formats.custom(64, 64, 'px'), { measure: ui.measure, transparent: true }).svg;
+  // ---------------------------------------------------------------- elements & asset library
+  const LIB_CATS = [['all', 'All'], ['photos', 'Photos'], ['videos', 'Videos'], ['audio', 'Audio'], ['graphics', 'Graphics'], ['stickers', 'Stickers'],
+    ['shapes', 'Shapes'], ['frames', 'Frames'], ['icons', 'Icons'], ['lines', 'Lines'], ['animations', 'Animations']];
+  const lib = { cat: 'all', q: '', provider: { photos: 'openverse', videos: 'pexels', audio: 'openverse' }, imageType: 'photo', audioCat: 'music',
+    results: [], page: 1, hasMore: false, loading: false, error: '', needsKey: '', req: 0, keys: null, player: null, resultsKey: '' };
+  const ONLINE = { photos: true, videos: true, audio: true };
+
+  function previewSvg(el, w, hh) {
+    const pg = { background: { type: 'solid', color: 'transparent' }, elements: [el] };
+    return render.renderPage(pg, formats.custom(w, hh, 'px'), { measure: ui.measure, transparent: true }).svg;
+  }
+  function shapePreview(kind) {
+    const el = D.createElement('shape', { shape: kind, x: 6, y: 6, w: 52, h: kind === 'arrow' || kind === 'pill' || kind === 'parallelogram' || kind === 'chevron' ? 32 : 52, fill: '#6366f1' });
+    if (el.h !== 52) el.y = 6 + (52 - el.h) / 2;
+    return previewSvg(el, 64, 64);
+  }
+  function graphicPreview(g) {
+    return `<svg viewBox="${g.viewBox}" preserveAspectRatio="xMidYMid meet">${render.sanitizeMarkup(g.markup).replace(/\{c1\}/g, g.color1).replace(/\{c2\}/g, g.color2).replace(/\{c3\}/g, g.color3)}</svg>`;
+  }
+  function framePreview(f) {
+    const el = D.createElement('image', { mask: f.mask, x: 8, y: 8, w: 48, h: f.mask === 'polaroid' ? 54 : f.mask === 'arch' ? 54 : 48 });
+    if (f.mask === 'polaroid' || f.mask === 'arch') el.y = 5;
+    return previewSvg(el, 64, 64);
+  }
+  function linePreview(p) {
+    const el = D.createElement('line', Object.assign({ x: 6, y: 32, w: 52, strokeWidth: 3 }, p.props, { strokeWidth: Math.min(4, (p.props.strokeWidth || 6) / 2) }));
+    return previewSvg(el, 64, 64);
+  }
+  const libSize = () => Math.min(size().w, size().h);
+
+  function addGraphic(g) {
+    const [, , vw, vh] = g.viewBox.split(/\s+/).map(Number);
+    const base = libSize() * 0.38;
+    const k = base / Math.max(vw, vh);
+    addElement(D.createElement('graphic', {
+      name: g.name, markup: g.markup, viewBox: g.viewBox, color1: g.color1, color2: g.color2, color3: g.color3,
+      keepRatio: g.keepRatio !== false, w: g.keepRatio === false ? size().w : vw * k, h: g.keepRatio === false ? size().h * 0.3 : vh * k
+    }));
+  }
+  function addSticker(emoji) {
+    const fs = libSize() * 0.16;
+    const el = D.createElement('text', { text: emoji, fontSize: fs, fontFamily: 'Segoe UI Emoji', align: 'center', w: fs * 1.5, name: 'Sticker ' + emoji, color: '#000000', lineHeight: 1.15 });
+    el.h = render.layoutText(el, ui.measure).height;
+    addElement(el);
+  }
+  function addFrame(f) {
+    const w = libSize() * 0.45;
+    const hh = f.mask === 'polaroid' ? w * 1.18 : f.mask === 'arch' ? w * 1.3 : f.mask === 'pill' ? w * 0.55 : f.mask === 'semicircle' ? w * 0.5 : w;
+    addElement(D.createElement('image', { mask: f.mask, w, h: hh, name: f.name + ' frame' }));
+    ui.toast('Frame added — click a photo in the library, or drop an image on the frame, to fill it.');
+  }
+  function addLine(p) {
+    addElement(D.createElement('line', Object.assign({ w: libSize() * 0.5, strokeWidth: Math.max(2, libSize() / 160), name: p.name }, p.props, p.props.strokeWidth ? { strokeWidth: p.props.strokeWidth * libSize() / 1080 * 1.5 } : {})));
+  }
+
+  // The selected element that a photo should go into (a frame, or an empty image).
+  function fillTarget() {
+    const sel = selected();
+    if (sel.length !== 1 || sel[0].type !== 'image' || sel[0].locked) return null;
+    return sel[0].mask && sel[0].mask !== 'none' ? sel[0] : (!sel[0].src ? sel[0] : null);
+  }
+
+  async function imageFromDataUrl(dataUrl) {
+    const blob = dataUrlToBlob(dataUrl);
+    return readImageFile(new File([blob], 'image', { type: blob.type }));
+  }
+
+  function creditOf(item) {
+    return {
+      title: item.title, creator: item.creator, license: item.license.label, licenseUrl: item.license.url,
+      attribution: !!item.license.attribution, source: item.source, sourceName: item.sourceName, text: item.attribution || ''
     };
-    for (const k of render.SHAPES) {
-      grid.appendChild(h('button.el-btn', { title: k, html: preview({ shape: k, radius: k === 'rect' ? 0 : 0 }), on: { click: () => addShape(k) } }));
-    }
-    grid.appendChild(h('button.el-btn', { title: 'rounded rectangle', html: preview({ shape: 'rect', radius: 12 }), on: { click: () => { addShape('rect'); selected()[0].radius = Math.min(selected()[0].w, selected()[0].h) * 0.15; commit(); renderAll(); } } }));
-    lp.appendChild(grid);
+  }
 
-    lp.appendChild(h('h4', null, 'Lines'));
-    const lines = h('div.el-grid');
-    lines.appendChild(h('button.el-btn', { title: 'Line', html: '<svg viewBox="0 0 64 64"><line x1="8" y1="32" x2="56" y2="32" stroke="#1f2333" stroke-width="4" stroke-linecap="round"/></svg>', on: { click: () => addShape('line') } }));
-    lines.appendChild(h('button.el-btn', { title: 'Arrow', html: '<svg viewBox="0 0 64 64"><line x1="8" y1="32" x2="46" y2="32" stroke="#1f2333" stroke-width="4" stroke-linecap="round"/><polygon points="58,32 44,23 44,41" fill="#1f2333"/></svg>', on: { click: () => addShape('arrow-line') } }));
-    lp.appendChild(lines);
-
-    lp.appendChild(h('h4', null, 'Icons'));
-    const icons = h('div.el-grid');
-    for (const name of Object.keys(render.ICONS)) {
-      icons.appendChild(h('button.el-btn', { title: name, html: `<svg viewBox="-4 -4 32 32" fill="none" stroke="#1f2333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${render.ICONS[name]}</svg>`, on: { click: () => addShape('icon:' + name) } }));
+  async function addLibraryItem(item) {
+    const busy = exporter.showBusy(`Downloading “${(item.title || '').slice(0, 40)}”…`);
+    try {
+      const credit = creditOf(item);
+      if (item.kind === 'image') {
+        const res = await window.api.libraryDownload(item);
+        const r = await imageFromDataUrl(res.dataUrl);
+        const src = D.addAsset(E.doc, r.dataUrl);
+        const target = fillTarget();
+        if (target) {
+          target.src = src; target.naturalW = r.w; target.naturalH = r.h; target.credit = credit;
+          commit(); renderAll();
+        } else {
+          const el = placeImage(src, r.w, r.h, null, (item.title || 'Photo').slice(0, 40));
+          el.credit = credit;
+          commit();
+        }
+      } else {
+        const res = await window.api.libraryDownload(item);
+        busy();
+        await addImportedClips([Object.assign(res, { credit })]);
+      }
+      if (credit.attribution) ui.toast('This item needs a credit line. See Credits in the page panel.');
+    } catch (err) {
+      ui.toast('Could not add: ' + err.message, 'error');
+    } finally {
+      busy();
     }
-    lp.appendChild(icons);
-    lp.appendChild(h('p.muted.small', null, 'Stock illustrations, stickers and photos come with the asset library (Phase 4).'));
+  }
+
+  function stopLibAudio() {
+    if (lib.player) { lib.player.pause(); lib.player.removeAttribute('src'); lib.player = null; }
+    document.querySelectorAll('.lib-audio .play.on').forEach((b) => { b.classList.remove('on'); b.textContent = '▶'; });
+  }
+
+  async function runSearch(reset) {
+    const cat = lib.cat;
+    if (!ONLINE[cat]) return;
+    const provider = lib.provider[cat];
+    const key = [cat, provider, lib.q, lib.imageType, lib.audioCat].join('|');
+    if (reset) { lib.results = []; lib.page = 1; lib.hasMore = false; lib.error = ''; lib.needsKey = ''; }
+    lib.resultsKey = key;
+    lib.loading = true;
+    const req = ++lib.req;
+    renderLibResults();
+    try {
+      const kind = cat === 'photos' ? 'image' : cat === 'videos' ? 'video' : 'audio';
+      const opts = { provider, kind, q: lib.q, page: lib.page };
+      if (kind === 'image') {
+        if (provider === 'pixabay') opts.imageType = lib.imageType;
+        if (provider === 'openverse' && lib.imageType !== 'photo') opts.category = 'illustration';
+        if (provider === 'openverse' && lib.imageType === 'photo') opts.category = 'photograph';
+      }
+      if (kind === 'audio' && lib.audioCat !== 'any') opts.category = lib.audioCat;
+      const res = await window.api.librarySearch(opts);
+      if (req !== lib.req) return;
+      if (res.needsKey) lib.needsKey = res.needsKey;
+      lib.results = lib.results.concat(res.items || []);
+      lib.hasMore = !!res.hasMore;
+    } catch (err) {
+      if (req !== lib.req) return;
+      lib.error = err.message || String(err);
+    } finally {
+      if (req === lib.req) { lib.loading = false; renderLibResults(); }
+    }
+  }
+
+  function licenseBadge(item) {
+    const l = item.license;
+    const cls = l.attribution ? '.credit' : '.free';
+    return h('span.lic' + cls, { title: `${l.label}${l.attribution ? ' — you must credit the author' : ' — free to use, no credit needed'}` }, l.attribution ? 'Credit' : 'Free');
+  }
+
+  function keyCard(provider) {
+    const names = { pexels: 'Pexels', pixabay: 'Pixabay' };
+    const urls = { pexels: 'https://www.pexels.com/api/new/', pixabay: 'https://pixabay.com/api/docs/' };
+    const input = h('input.input', { placeholder: `Paste your ${names[provider]} API key` });
+    const msg = h('div.small.muted');
+    return h('div.key-card', null,
+      h('strong', null, `${names[provider]} needs a free API key`),
+      h('p.small', null, `Sign up at ${names[provider]} (free), copy your API key and paste it here. It is stored encrypted on this PC. You can also manage keys in Settings.`),
+      h('button.btn.wide', { on: { click: () => window.api.openExternal(urls[provider]) } }, `Get a free ${names[provider]} key ↗`),
+      input,
+      h('button.btn.primary.wide', {
+        on: {
+          click: async () => {
+            msg.textContent = 'Checking key…';
+            try {
+              const r = await window.api.setKey(provider, input.value);
+              if (r.ok) { lib.keys = null; ui.toast(`${names[provider]} key saved`, 'success'); runSearch(true); }
+              else msg.textContent = r.error || 'Key not accepted';
+            } catch (err) { msg.textContent = err.message; }
+          }
+        }
+      }, 'Save key'), msg);
+  }
+
+  function leftElements(lp) {
+    const search = h('input.input.lib-search', { placeholder: 'Search photos, videos, music, graphics…', value: lib.q });
+    const go = () => {
+      lib.q = search.value.trim();
+      if (lib.cat === 'all' && lib.q) { /* show built-in matches + online shortcuts */ }
+      if (ONLINE[lib.cat]) runSearch(true); else renderLibBody();
+    };
+    search.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    search.addEventListener('input', ui.debounce(() => { if (!ONLINE[lib.cat]) go(); }, 300));
+    const chips = h('div.lib-chips');
+    for (const [id, label] of LIB_CATS) {
+      chips.appendChild(h('button.chip' + (lib.cat === id ? '.on' : ''), { on: { click: () => setLibCat(id) } }, label));
+    }
+    lp.appendChild(search);
+    lp.appendChild(chips);
+    lp.appendChild(h('div#lib-body'));
+    renderLibBody();
+  }
+
+  function setLibCat(id) {
+    stopLibAudio();
+    lib.cat = id;
+    renderLeftPanel();
+    if (ONLINE[id] && lib.resultsKey !== [id, lib.provider[id], lib.q, lib.imageType, lib.audioCat].join('|')) runSearch(true);
+  }
+
+  function sectionHead(title, cat) {
+    return h('div.lib-head', null, h('h4', null, title), cat ? h('button.link.small', { on: { click: () => setLibCat(cat) } }, 'See all') : null);
+  }
+
+  function renderLibBody() {
+    const body = document.getElementById('lib-body');
+    if (!body) return;
+    body.innerHTML = '';
+    const q = lib.q;
+    const found = root.DS.assets.searchBuiltIn(q);
+    const A = root.DS.assets;
+    const shapesGrid = (list) => { const g = h('div.el-grid'); list.forEach((k) => g.appendChild(h('button.el-btn', { title: k, html: shapePreview(k), on: { click: () => addShape(k) } }))); return g; };
+    const graphicsGrid = (list) => { const g = h('div.el-grid.g3'); list.forEach((x) => g.appendChild(h('button.el-btn', { title: x.name, html: graphicPreview(x), on: { click: () => addGraphic(x) } }))); return g; };
+    const iconsGrid = (list) => { const g = h('div.el-grid.g5'); list.forEach((name) => g.appendChild(h('button.el-btn', { title: name, html: `<svg viewBox="-4 -4 32 32" fill="none" stroke="#1f2333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${render.ICONS[name]}</svg>`, on: { click: () => addShape('icon:' + name) } }))); return g; };
+    const framesGrid = (list) => { const g = h('div.el-grid'); list.forEach((f) => g.appendChild(h('button.el-btn', { title: f.name, html: framePreview(f), on: { click: () => addFrame(f) } }))); return g; };
+    const linesGrid = (list) => { const g = h('div.el-grid'); list.forEach((p) => g.appendChild(h('button.el-btn', { title: p.name, html: linePreview(p), on: { click: () => addLine(p) } }))); return g; };
+    const stickerRow = (items) => { const g = h('div.sticker-grid'); items.forEach((e) => g.appendChild(h('button.sticker', { title: 'Add sticker', on: { click: () => addSticker(e) } }, e))); return g; };
+    const onlineCard = (cat, title, text, ic) => h('button.online-card', { on: { click: () => setLibCat(cat) } }, h('span.ic', { html: icon(ic) }), h('span', null, h('strong', null, title), h('span.small.muted', null, text)));
+
+    if (lib.cat === 'all') {
+      if (q) {
+        body.appendChild(h('div.online-row', null,
+          onlineCard('photos', `Photos of “${q}”`, 'Free stock photos', 'image'),
+          onlineCard('videos', `Videos of “${q}”`, 'Free stock clips', 'video'),
+          onlineCard('audio', `Audio: “${q}”`, 'Music & sound effects', 'elements')));
+        if (found.graphics.length) { body.appendChild(sectionHead('Graphics', 'graphics')); body.appendChild(graphicsGrid(found.graphics.slice(0, 12))); }
+        if (found.icons.length) { body.appendChild(sectionHead('Icons', 'icons')); body.appendChild(iconsGrid(found.icons.slice(0, 15))); }
+        if (found.shapes.length) { body.appendChild(sectionHead('Shapes', 'shapes')); body.appendChild(shapesGrid(found.shapes)); }
+        if (!found.graphics.length && !found.icons.length && !found.shapes.length) body.appendChild(h('p.muted.small', null, 'No built-in graphics match. Try the online photos, videos or audio above.'));
+        return;
+      }
+      body.appendChild(h('div.online-row', null,
+        onlineCard('photos', 'Photos', 'Millions of free photos', 'image'),
+        onlineCard('videos', 'Videos', 'Free stock clips', 'video'),
+        onlineCard('audio', 'Audio', 'Music & sound effects', 'elements')));
+      body.appendChild(sectionHead('Graphics', 'graphics')); body.appendChild(graphicsGrid(A.GRAPHICS.slice(0, 9)));
+      body.appendChild(sectionHead('Stickers', 'stickers')); body.appendChild(stickerRow(A.STICKERS[0].items.slice(0, 7).concat(A.STICKERS[2].items.slice(0, 7))));
+      body.appendChild(sectionHead('Shapes', 'shapes')); body.appendChild(shapesGrid(render.SHAPES.slice(0, 8)));
+      body.appendChild(sectionHead('Frames', 'frames')); body.appendChild(framesGrid(A.FRAMES.slice(0, 8)));
+      body.appendChild(sectionHead('Icons', 'icons')); body.appendChild(iconsGrid(Object.keys(render.ICONS).slice(0, 10)));
+      body.appendChild(sectionHead('Lines', 'lines')); body.appendChild(linesGrid(A.LINES.slice(0, 4)));
+      body.appendChild(sectionHead('Animations', 'animations'));
+      body.appendChild(h('p.muted.small', null, 'Select something on the page, then choose how it moves when the design plays as a video.'));
+      return;
+    }
+    if (lib.cat === 'shapes') { body.appendChild(shapesGrid(found.shapes)); return; }
+    if (lib.cat === 'graphics') {
+      body.appendChild(graphicsGrid(found.graphics));
+      body.appendChild(h('p.muted.small', null, 'Tip: change a graphic’s colours in the right panel.'));
+      body.appendChild(h('button.btn.wide', { on: { click: () => { lib.imageType = 'illustration'; setLibCat('photos'); } } }, 'More illustrations online →'));
+      return;
+    }
+    if (lib.cat === 'icons') { body.appendChild(iconsGrid(found.icons)); return; }
+    if (lib.cat === 'frames') {
+      body.appendChild(h('p.muted.small', null, 'Add a frame, then click a photo (Photos tab or Uploads) or drop an image onto it.'));
+      body.appendChild(framesGrid(A.FRAMES));
+      return;
+    }
+    if (lib.cat === 'lines') { body.appendChild(linesGrid(A.LINES)); return; }
+    if (lib.cat === 'stickers') {
+      for (const g of A.STICKERS) { body.appendChild(h('h4', null, g.name)); body.appendChild(stickerRow(g.items)); }
+      return;
+    }
+    if (lib.cat === 'animations') { libAnimations(body); return; }
+    // online categories
+    libOnlineControls(body);
+    body.appendChild(h('div#lib-results'));
+    renderLibResults();
+  }
+
+  function libOnlineControls(body) {
+    const cat = lib.cat;
+    const opts = {
+      photos: [['openverse', 'Openverse'], ['pexels', 'Pexels'], ['pixabay', 'Pixabay']],
+      videos: [['pexels', 'Pexels'], ['pixabay', 'Pixabay']],
+      audio: [['openverse', 'Openverse']]
+    }[cat];
+    const prov = h('select.input');
+    for (const [v, l] of opts) prov.appendChild(h('option', { value: v }, l));
+    prov.value = lib.provider[cat];
+    prov.addEventListener('change', () => { lib.provider[cat] = prov.value; runSearch(true); });
+    const row = h('div.lib-controls', null, prov);
+    if (cat === 'photos') {
+      const t = h('select.input', null, h('option', { value: 'photo' }, 'Photos'), h('option', { value: 'illustration' }, 'Illustrations'), h('option', { value: 'vector' }, 'Vector graphics'));
+      t.value = lib.imageType;
+      t.addEventListener('change', () => { lib.imageType = t.value; runSearch(true); });
+      row.appendChild(t);
+    }
+    if (cat === 'audio') {
+      const t = h('select.input', null, h('option', { value: 'music' }, 'Music'), h('option', { value: 'sound_effect' }, 'Sound effects'), h('option', { value: 'any' }, 'Everything'));
+      t.value = lib.audioCat;
+      t.addEventListener('change', () => { lib.audioCat = t.value; runSearch(true); });
+      row.appendChild(t);
+    }
+    body.appendChild(row);
+    if (fillTarget() && cat === 'photos') body.appendChild(h('div.notice.small', null, 'A frame is selected — the photo you click will go inside it.'));
+  }
+
+  function renderLibResults() {
+    const box = document.getElementById('lib-results');
+    if (!box) return;
+    box.innerHTML = '';
+    if (lib.needsKey) { box.appendChild(keyCard(lib.needsKey)); return; }
+    if (lib.error) {
+      box.appendChild(h('div.notice.small', null, lib.error));
+      box.appendChild(h('button.btn.wide', { on: { click: () => runSearch(true) } }, 'Try again'));
+      return;
+    }
+    if (!lib.results.length && !lib.loading) {
+      box.appendChild(h('p.muted.small', null, lib.q ? 'Nothing found. Try other words (English works best).' : 'Type what you are looking for and press Enter.'));
+      return;
+    }
+    if (lib.cat === 'audio') {
+      for (const item of lib.results) {
+        const play = h('button.play', { title: 'Listen' }, '▶');
+        play.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const was = play.classList.contains('on');
+          stopLibAudio();
+          if (was) return;
+          lib.player = new Audio(item.preview);
+          lib.player.play().catch(() => ui.toast('This preview cannot be played.', 'error'));
+          lib.player.onended = stopLibAudio;
+          play.classList.add('on'); play.textContent = '■';
+        });
+        box.appendChild(h('div.lib-audio', { title: 'Click to add to the timeline', on: { click: () => { stopLibAudio(); addLibraryItem(item); } } },
+          play,
+          h('div.lib-audio-info', null, h('div.lib-audio-title', null, item.title), h('div.small.muted', null, [item.creator, item.duration ? fmtTime(item.duration) : ''].filter(Boolean).join(' · '))),
+          licenseBadge(item)));
+      }
+    } else {
+      const grid = h('div.lib-grid');
+      for (const item of lib.results) {
+        const tile = h('button.lib-tile', { title: `${item.title}${item.creator ? ' — ' + item.creator : ''}\n${item.license.label}`, on: { click: () => addLibraryItem(item) } },
+          h('img', { src: item.thumb, loading: 'lazy', draggable: false, referrerpolicy: 'no-referrer' }),
+          licenseBadge(item),
+          item.kind === 'video' ? h('span.dur', null, fmtTime(item.duration)) : null);
+        if (item.kind === 'video' && item.preview) {
+          let v = null;
+          tile.addEventListener('mouseenter', () => { v = h('video', { src: item.preview, muted: true, autoplay: true, loop: true, playsInline: true }); v.muted = true; tile.appendChild(v); });
+          tile.addEventListener('mouseleave', () => { if (v) { v.pause(); v.remove(); v = null; } });
+        }
+        grid.appendChild(tile);
+      }
+      box.appendChild(grid);
+    }
+    if (lib.loading) box.appendChild(h('div.lib-loading', null, h('div.spinner.small'), 'Searching…'));
+    else if (lib.hasMore) box.appendChild(h('button.btn.wide', { on: { click: () => { lib.page++; runSearch(false); } } }, 'Load more'));
+    const src = { openverse: 'Openverse — openly licensed media. Check each item’s licence.', pexels: 'Photos and videos provided by Pexels.', pixabay: 'Images and videos provided by Pixabay.' }[lib.provider[lib.cat]];
+    if (src) box.appendChild(h('p.muted.small.lib-source', null, src));
+  }
+
+  function libAnimations(body) {
+    const A = root.DS.assets;
+    const sel = selected();
+    if (!sel.length) {
+      body.appendChild(h('div.notice.small', null, 'Select a text, graphic, photo or video on the page first, then choose an animation. Animations play in ▶ Play and in MP4 export.'));
+    } else {
+      const cur = sel[0].anim || {};
+      body.appendChild(h('h4', null, 'Entrance'));
+      const g = h('div.anim-grid');
+      for (const [id, label] of A.ANIMATIONS_IN) {
+        g.appendChild(h('button.anim-btn' + (cur.in === id ? '.on' : ''), {
+          on: { click: () => { sel.forEach((e) => { e.anim = Object.assign({ in: 'none', loop: 'none', duration: 0.8, delay: 0 }, e.anim, { in: id }); }); commit(); renderLeftPanel(); renderRightPanel(); } }
+        }, h('span.anim-demo.' + id), label));
+      }
+      body.appendChild(g);
+      body.appendChild(h('h4', null, 'Keep moving'));
+      const g2 = h('div.anim-grid');
+      for (const [id, label] of A.ANIMATIONS_LOOP) {
+        g2.appendChild(h('button.anim-btn' + (cur.loop === id ? '.on' : ''), {
+          on: { click: () => { sel.forEach((e) => { e.anim = Object.assign({ in: 'none', loop: 'none', duration: 0.8, delay: 0 }, e.anim, { loop: id }); }); commit(); renderLeftPanel(); renderRightPanel(); } }
+        }, h('span.anim-demo.loop-' + id), label));
+      }
+      body.appendChild(g2);
+      body.appendChild(h('button.btn.wide', { on: { click: () => openPreview(D.timeline(E.doc).scenes[E.pageIndex].start) } }, '▶ Play to see it'));
+    }
+    body.appendChild(h('h4', null, `Transition into page ${E.pageIndex + 1}`));
+    if (E.pageIndex === 0) body.appendChild(h('p.muted.small', null, 'The first page has no transition. Select another page to choose how it appears.'));
+    else {
+      const tr = page().transition || { type: 'none', duration: 0.6 };
+      const g3 = h('div.anim-grid');
+      for (const [id, label] of A.TRANSITIONS) {
+        g3.appendChild(h('button.anim-btn' + (tr.type === id ? '.on' : ''), {
+          on: { click: () => { page().transition = { type: id, duration: tr.duration || 0.6 }; commit(); renderLeftPanel(); renderRightPanel(); } }
+        }, label));
+      }
+      body.appendChild(g3);
+    }
+  }
+
+  // Animation settings in the right panel.
+  function animSection(sel) {
+    const A = root.DS.assets;
+    const el = sel[0];
+    if (!el.anim) el.anim = { in: 'none', loop: 'none', duration: 0.8, delay: 0 };
+    const mk = (key, list) => {
+      const s = h('select.input');
+      for (const [v, l] of list) s.appendChild(h('option', { value: v }, l));
+      s.value = el.anim[key] || 'none';
+      s.addEventListener('change', () => { sel.forEach((e) => { e.anim = Object.assign({ in: 'none', loop: 'none', duration: 0.8, delay: 0 }, e.anim, { [key]: s.value }); }); commit(); renderRightPanel(); });
+      return s;
+    };
+    return section('Animation',
+      h('div.grid2', null, field('Entrance', mk('in', A.ANIMATIONS_IN)), field('Keep moving', mk('loop', A.ANIMATIONS_LOOP))),
+      el.anim.in !== 'none' ? h('div.grid2', null, field('Speed (s)', num('anim.duration', { min: 0.1, max: 10, step: 0.1 })), field('Delay (s)', num('anim.delay', { min: 0, max: 60, step: 0.1 }))) : null,
+      h('p.muted.small', null, 'Plays in ▶ Play and MP4 export.'));
+  }
+
+  function creditLine(c) {
+    return c.text || [c.title, c.creator ? 'by ' + c.creator : '', c.sourceName ? 'from ' + c.sourceName : '', c.license ? '(' + c.license + ')' : ''].filter(Boolean).join(' ');
+  }
+  function creditSection(c) {
+    if (!c) return null;
+    return section('Credit',
+      h('div.small', null, creditLine(c)),
+      h('div.small.muted', null, c.attribution ? 'This licence requires you to credit the author when you publish.' : 'Free licence — credit not required.'),
+      h('div.btn-row.text-btns', null,
+        c.source ? h('button.tog', { on: { click: () => window.api.openExternal(c.source) } }, 'Source ↗') : null,
+        c.licenseUrl ? h('button.tog', { on: { click: () => window.api.openExternal(c.licenseUrl) } }, 'Licence ↗') : null));
+  }
+
+  function rightGraphic(rp, sel) {
+    const el = sel[0];
+    const uses = (k) => el.markup.includes('{' + k + '}');
+    rp.appendChild(section('Graphic colours',
+      uses('c1') ? field('Colour 1', color('color1')) : null,
+      uses('c2') ? field('Colour 2', color('color2')) : null,
+      uses('c3') ? field('Colour 3', color('color3')) : null,
+      check('Keep proportions', 'keepRatio')));
   }
 
   function leftText(lp) {
@@ -1233,7 +1634,11 @@
         on: {
           click: () => {
             const img = new Image();
-            img.onload = () => placeImage(src, img.naturalWidth, img.naturalHeight);
+            img.onload = () => {
+              const t = fillTarget();
+              if (t) { t.src = src; t.naturalW = img.naturalWidth; t.naturalH = img.naturalHeight; t.credit = null; commit(); renderAll(); }
+              else placeImage(src, img.naturalWidth, img.naturalHeight);
+            };
             img.src = resolveSrcForEditor(src);
           }
         }
@@ -1418,7 +1823,7 @@
     const types = new Set(sel.map((e) => e.type));
     const sameType = types.size === 1 ? sel[0].type : null;
 
-    rp.appendChild(h('div.panel-title', null, one ? ({ text: 'Text', image: 'Image', line: 'Line', video: 'Video' }[one.type] || 'Shape') : `${sel.length} items`));
+    rp.appendChild(h('div.panel-title', null, one ? ({ text: 'Text', image: one.mask && one.mask !== 'none' ? 'Frame' : 'Image', line: 'Line', video: 'Video', graphic: 'Graphic' }[one.type] || 'Shape') : `${sel.length} items`));
 
     // quick actions
     const locked = sel.some((e) => e.locked);
@@ -1435,6 +1840,7 @@
     if (sameType === 'line') rightLine(rp, sel);
     if (sameType === 'image') rightImage(rp, sel);
     if (sameType === 'video') rightVideo(rp, sel);
+    if (sameType === 'graphic') rightGraphic(rp, sel);
 
     // position
     if (one) {
@@ -1456,6 +1862,8 @@
         h('button.tog', { on: { click: () => cmd.arrange('backward') } }, 'Backward'),
         h('button.tog', { on: { click: () => cmd.arrange('back') } }, 'To back'))));
     rp.appendChild(section('Transparency', slider('opacity', 0, 100, 1, { factor: 100, unit: '%' })));
+    rp.appendChild(animSection(sel));
+    if (one) { const cs = creditSection(one.credit); if (cs) rp.appendChild(cs); }
     rp.appendChild(section('Shadow',
       h('label.check', null, (() => { const c = h('input', { type: 'checkbox', checked: !!sel[0].shadow.on }); c.addEventListener('change', () => { sel.forEach((e) => { e.shadow.on = c.checked; }); commit(); renderCanvas(); renderRightPanel(); }); return c; })(), ' Drop shadow'),
       sel[0].shadow.on ? h('div', null,
@@ -1536,18 +1944,21 @@
     rp.appendChild(section('Line',
       field('Colour', color('stroke')),
       h('div.grid2', null, field('Thickness', num('strokeWidth', { min: 0.5, step: 0.5 })), field('Style', select_('strokeDash', [['solid', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']]))),
-      h('div.grid2', null, field('Start', select_('startCap', caps)), field('End', select_('endCap', caps)))));
+      h('div.grid2', null, field('Start', select_('startCap', caps)), field('End', select_('endCap', caps))),
+      field('Shape', select_('lineStyle', [['straight', 'Straight'], ['wavy', 'Wavy'], ['zigzag', 'Zigzag'], ['double', 'Double']]))));
   }
 
   function rightImage(rp, sel) {
     const el = sel[0];
     rp.appendChild(section('Image',
+      field('Frame shape', select_('mask', root.DS.assets.FRAMES.map((f) => [f.mask, f.name]), () => renderRightPanel())),
+      el.mask === 'polaroid' ? field('Card colour', color('frameColor')) : null,
       field('Fit in frame', select_('fit', [['cover', 'Fill frame (crop)'], ['contain', 'Fit whole image'], ['stretch', 'Stretch']])),
       h('p.muted.small', null, 'To crop: choose “Fill frame”, then drag the side handles.'),
       h('div.grid2', null, field('Corner roundness', num('radius', { min: 0 })), field('Border width', num('strokeWidth', { min: 0 }))),
       el.strokeWidth > 0 ? field('Border colour', color('stroke')) : null,
       h('div.btn-row.text-btns', null,
-        h('button.tog', { on: { click: () => pickFiles(async (files) => { try { const r = await readImageFile(files[0]); el.src = D.addAsset(E.doc, r.dataUrl); el.naturalW = r.w; el.naturalH = r.h; commit(); renderAll(); } catch (err) { ui.toast(err.message, 'error'); } }) } }, 'Replace image'),
+        h('button.tog', { on: { click: () => pickFiles(async (files) => { try { const r = await readImageFile(files[0]); el.src = D.addAsset(E.doc, r.dataUrl); el.naturalW = r.w; el.naturalH = r.h; el.credit = null; commit(); renderAll(); } catch (err) { ui.toast(err.message, 'error'); } }) } }, el.src ? 'Replace image' : 'Choose image'),
         h('button.tog', { on: { click: () => { page().background = { type: 'image', src: el.src, color: '#ffffff', imageOpacity: el.opacity }; D.remove(page(), [el.id]); E.sel = []; commit(); renderAll(); } } }, 'Set as background'),
         h('button.tog', { on: { click: () => { const k = el.naturalW / el.naturalH; el.h = el.w / k; commit(); renderAll(); } } }, 'Original shape'))));
     rp.appendChild(section('Adjust',
@@ -1577,7 +1988,19 @@
       rp.appendChild(section('Scene',
         field('Scene length (seconds)', objNum(page(), 'duration', { min: 0.5, max: 3600, after: renderRightPanel })),
         h('div.kv.muted', null, `Starts at ${fmtTime(tl.scenes[E.pageIndex].start)} · whole video ${fmtTime(tl.total)}`),
+        E.pageIndex > 0 ? h('div.grid2', null,
+          field('Transition in', (() => { const t = page().transition || (page().transition = { type: 'none', duration: 0.6 }); const sl = h('select.input'); root.DS.assets.TRANSITIONS.forEach(([v, l]) => sl.appendChild(h('option', { value: v }, l))); sl.value = t.type; sl.addEventListener('change', () => { t.type = sl.value; commit(); }); return sl; })()),
+          field('Length (s)', objNum(page().transition, 'duration', { min: 0.1, max: 3 }))) : null,
         h('button.btn.wide', { on: { click: () => openPreview(tl.scenes[E.pageIndex].start) } }, '▶ Play from this scene')));
+    }
+    const credits = D.credits(E.doc);
+    if (credits.length) {
+      const lines = credits.map(creditLine);
+      const need = credits.filter((c) => c.attribution).length;
+      rp.appendChild(section('Credits',
+        h('div.small.muted', null, need ? `${need} item${need > 1 ? 's need' : ' needs'} a credit when you publish. Add this text to your post or design.` : 'All library items here are free to use without credit.'),
+        h('div.credits', null, ...lines.map((l) => h('div.small', null, '• ' + l))),
+        h('button.btn.wide', { on: { click: () => { navigator.clipboard.writeText(lines.join('\n')).then(() => ui.toast('Credits copied', 'success')); } } }, 'Copy credits')));
     }
     const typeSel = h('select.input', null, h('option', { value: 'solid' }, 'Solid colour'), h('option', { value: 'gradient' }, 'Gradient'), h('option', { value: 'image' }, 'Image'));
     typeSel.value = bg.type;
@@ -1737,7 +2160,15 @@
     ws.addEventListener('drop', (e) => {
       e.preventDefault();
       ws.classList.remove('drop');
-      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files, pointerToPage(e));
+      if (!e.dataTransfer.files.length) return;
+      const g = e.target.closest && e.target.closest('#page-svg [data-id]');
+      const target = g && byId(g.dataset.id);
+      const img = Array.from(e.dataTransfer.files).find(isImageFile);
+      if (target && target.type === 'image' && !target.locked && img && e.dataTransfer.files.length === 1) {
+        readImageFile(img).then((r) => { target.src = D.addAsset(E.doc, r.dataUrl); target.naturalW = r.w; target.naturalH = r.h; target.credit = null; E.sel = [target.id]; commit(); renderAll(); }).catch((err) => ui.toast(err.message, 'error'));
+        return;
+      }
+      handleFiles(e.dataTransfer.files, pointerToPage(e));
     });
 
     const ta = $('text-editor');

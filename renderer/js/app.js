@@ -361,6 +361,31 @@
       h('p', null, 'Your designs are saved automatically as .dstudio files in:'),
       h('code.path', null, info.projectsDir),
       h('div.btn-row', null, h('button.btn', { on: { click: () => window.api.openProjectsFolder() } }, 'Open folder'))));
+    const keyRow = (provider, name, url, status) => {
+      const input = h('input.input', { type: 'password', placeholder: status ? 'Key saved — paste a new one to replace it' : `Paste your ${name} API key` });
+      const msg = h('span.small.muted', null, status ? '✓ Key saved' : 'No key yet');
+      return h('div.key-row', null,
+        h('div', null, h('strong', null, name), ' ', msg),
+        h('div.btn-row', null, input,
+          h('button.btn.primary', {
+            on: {
+              click: async () => {
+                msg.textContent = 'Checking…';
+                const r = await window.api.setKey(provider, input.value);
+                msg.textContent = r.ok ? (r.removed ? 'Key removed' : '✓ Key saved and working') : '✗ ' + (r.error || 'Key not accepted');
+                input.value = '';
+              }
+            }
+          }, 'Save'),
+          status ? h('button.btn', { on: { click: async () => { await window.api.setKey(provider, ''); msg.textContent = 'Key removed'; } } }, 'Remove') : null,
+          h('button.btn', { on: { click: () => window.api.openExternal(url) } }, 'Get a free key ↗')));
+    };
+    const keys = await window.api.keysStatus().catch(() => ({}));
+    main.appendChild(h('div.card', null,
+      h('h3', null, 'Stock photos, videos & music'),
+      h('p.muted', null, 'Openverse photos, illustrations and audio work without a key. For Pexels and Pixabay photos and videos, sign up (free) and paste your API key. Keys are stored encrypted on this PC and are never saved inside designs.'),
+      keyRow('pexels', 'Pexels', 'https://www.pexels.com/api/new/', keys.pexels),
+      keyRow('pixabay', 'Pixabay', 'https://pixabay.com/api/docs/', keys.pixabay)));
     main.appendChild(h('div.card', null,
       h('h3', null, 'AI services'),
       h('p.muted', null, 'API keys for the AI image generator (OpenAI / Stability AI / Replicate) and Magic Write (Claude) will be entered here in Phase 2. Keys will be encrypted with Windows data protection and never written into project files.')));
@@ -378,7 +403,10 @@
       ['Magic Resize (smart re-layout)', 'Phase 2 · manual resize works now'],
       ['Presentation mode, slide transitions, PPTX export', 'Phase 3'],
       ['Video & audio upload, scene timeline, clip trimming, music tracks with fades, preview, MP4 export', 'Ready'],
-      ['Transitions, animated text, captions, advanced video editing', 'Phase 3'],
+      ['Asset library: online photos, videos & music (Openverse, Pexels, Pixabay) with licence labels and credits', 'Ready'],
+      ['Built-in graphics, stickers, frames, 22 shapes, 69 icons, line styles', 'Ready'],
+      ['Element animations and scene transitions (in preview and MP4)', 'Ready'],
+      ['Captions/subtitles, timeline split tool', 'Phase 3'],
       ['Website & Link-in-Bio builder', 'Phase 3'],
       ['Brand Kit, asset library, version history', 'Phase 4']
     ];

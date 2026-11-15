@@ -220,4 +220,4 @@ function init(opts) {
   registerIpc();
 }
 
-module.exports = { init, handleProtocol, VIDEO_EXT, AUDIO_EXT };
+module.exports = { init, handleProtocol, mediaDir: () => mediaDir(), VIDEO_EXT, AUDIO_EXT };

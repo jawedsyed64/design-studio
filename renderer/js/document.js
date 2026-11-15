@@ -20,6 +20,7 @@
       id: uid(),
       background: background || { type: 'solid', color: '#ffffff', color2: '#4f46e5', angle: 135 },
       duration: 5, // seconds this page lasts when the design is played as a video
+      transition: { type: 'none', duration: 0.6 }, // how this scene appears after the previous one
       elements: []
     };
   }
@@ -48,7 +49,10 @@
     x: 0, y: 0, w: 100, h: 100, rotation: 0, opacity: 1,
     locked: false, hidden: false, flipX: false, flipY: false,
     groupId: null, name: '',
-    shadow: { on: false, x: 6, y: 6, blur: 10, color: '#00000055' }
+    shadow: { on: false, x: 6, y: 6, blur: 10, color: '#00000055' },
+    // animation used when the design plays as a video (preview and MP4 export)
+    anim: { in: 'none', loop: 'none', duration: 0.8, delay: 0 },
+    credit: null // { title, creator, license, licenseUrl, source, url, attribution } for library assets
   };
 
   const FACTORIES = {
@@ -72,7 +76,13 @@
     line(o) {
       return Object.assign(clone(BASE), {
         type: 'line', name: 'Line', w: 400, h: 0,
-        stroke: '#1f2333', strokeWidth: 6, strokeDash: 'solid', startCap: 'none', endCap: 'none'
+        stroke: '#1f2333', strokeWidth: 6, strokeDash: 'solid', startCap: 'none', endCap: 'none', lineStyle: 'straight'
+      }, o);
+    },
+    graphic(o) {
+      return Object.assign(clone(BASE), {
+        type: 'graphic', name: 'Graphic', w: 300, h: 300,
+        markup: '', viewBox: '0 0 100 100', color1: '#6366f1', color2: '#f59e0b', color3: '#ffffff', keepRatio: true
       }, o);
     },
     video(o) {
@@ -87,7 +97,7 @@
     image(o) {
       return Object.assign(clone(BASE), {
         type: 'image', name: 'Image', w: 400, h: 300,
-        src: '', naturalW: 400, naturalH: 300, fit: 'cover', radius: 0,
+        src: '', naturalW: 400, naturalH: 300, fit: 'cover', radius: 0, mask: 'none', frameColor: '#ffffff',
         stroke: '#ffffff', strokeWidth: 0,
         filters: { brightness: 100, contrast: 100, saturation: 100, blur: 0, grayscale: false, sepia: false }
       }, o);
@@ -98,7 +108,7 @@
   function createAudioTrack(props) {
     return Object.assign({
       id: uid(), src: '', name: 'Audio', duration: 0, start: 0, trimStart: 0, trimEnd: 0,
-      volume: 1, fadeIn: 0, fadeOut: 0, loop: false
+      volume: 1, fadeIn: 0, fadeOut: 0, loop: false, credit: null
     }, props || {});
   }
 
@@ -120,11 +130,31 @@
     return { scenes, total: t };
   }
 
+  // Every library asset used in the design, with its licence (for the Credits list).
+  function credits(doc) {
+    const out = [];
+    const seen = new Set();
+    const add = (c) => {
+      if (!c) return;
+      const key = (c.url || '') + '|' + (c.title || '');
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(c);
+    };
+    for (const p of doc.pages) for (const e of p.elements) add(e.credit);
+    for (const a of doc.audio || []) add(a.credit);
+    return out;
+  }
+
   function hasMedia(doc) {
     return (doc.audio && doc.audio.length > 0) || doc.pages.some((p) => p.elements.some((e) => e.type === 'video'));
   }
+  function hasMotion(doc) {
+    return doc.pages.some((p, i) => (i > 0 && p.transition && p.transition.type && p.transition.type !== 'none') ||
+      p.elements.some((e) => e.anim && ((e.anim.in && e.anim.in !== 'none') || (e.anim.loop && e.anim.loop !== 'none'))));
+  }
   function isVideoDoc(doc) {
-    return doc.format.kind === 'video' || hasMedia(doc);
+    return doc.format.kind === 'video' || hasMedia(doc) || hasMotion(doc);
   }
 
   function createElement(type, props) {
@@ -322,6 +352,7 @@
       if (!p.id) p.id = uid();
       if (!p.background) p.background = { type: 'solid', color: '#ffffff' };
       if (!(p.duration > 0)) p.duration = 5;
+      if (!p.transition) p.transition = { type: 'none', duration: 0.6 };
       p.elements = (p.elements || []).map((e) => {
         const def = FACTORIES[e.type] ? FACTORIES[e.type]({}) : clone(BASE);
         const merged = Object.assign(def, e);
@@ -362,7 +393,7 @@
     DOC_VERSION, uid, clone, newPage, newDocument, createElement, bounds, unionBounds, indexOf,
     expandGroups, group, ungroup, reorder, duplicate, remove, align, distribute, resizeDocument, migrate, History,
     addAsset, resolveAsset, usedAssets, pruneAssets, snapshot,
-    createAudioTrack, clipLength, timeline, hasMedia, isVideoDoc
+    createAudioTrack, clipLength, timeline, hasMedia, isVideoDoc, credits
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.DS = root.DS || {}).doc = api;

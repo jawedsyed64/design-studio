@@ -3,6 +3,7 @@
 ```
 main/
   main.js        Electron main process: window, menu, file system, dialogs, PDF printing
+  library.js     Stock library: Openverse/Pexels/Pixabay search and download, encrypted API keys
   media.js       Video/audio: media folder, dsmedia:// streaming protocol, ffmpeg conversion and MP4 encoding
   preload.js     The only bridge to the renderer (contextBridge `window.api`)
 renderer/
@@ -12,6 +13,7 @@ renderer/
   js/document.js Document model, element factories, group/align/reorder, assets, undo history
   js/render.js   Page → standalone SVG (used both on screen and for every export)
   js/templates.js Starter templates as size-adaptive layout functions
+  js/assets.js   Built-in graphics, stickers, frames, line styles, animation presets
   js/ui.js       Icons, DOM helper, modals, toasts, text measurement
   js/exporter.js PNG/JPEG rasterisation, SVG, PDF, export dialog
   js/video.js    Clip import (duration, poster), playback compositor, preview player, MP4 export
@@ -41,3 +43,11 @@ test/            Node unit tests for the pure modules (formats, model, renderer,
 - Each page is a scene lasting `page.duration` seconds. A `video` element shows its poster frame in the editor. `doc.audio` holds the music and voice tracks for the timeline.
 - **Compositor** (`video.js`): it splits each page into still layers (rendered once from the page SVG) and live video layers, then draws them in order on a canvas. Sound goes through Web Audio, with gain nodes handling volume and fades.
 - **MP4 export:** the canvas and the audio stream are recorded in real time with `MediaRecorder` (WebM) and streamed to disk in chunks. ffmpeg (`ffmpeg-static`, unpacked from the asar) then converts the recording to H.264/AAC MP4 with `+faststart`.
+
+## Asset library
+
+- **Online search** runs in the main process (`library.js`), so API keys never reach the web page. Results are normalised to one item shape: thumbnail, download URL, size or duration, and licence. Photos are downloaded and embedded as assets. Videos and audio are saved into the media folder and go through the same import path as uploads.
+- **Licences:** every item carries `{label, attribution, commercial, modify}`. Openverse searches only licences that allow commercial use and modification. Elements keep a `credit`, and `doc.credits()` builds the Credits list.
+- **Graphics** are `graphic` elements holding their own SVG markup with `{c1}`/`{c2}`/`{c3}` colour slots. The markup is sanitised on render, so a crafted project file can't inject scripts or event handlers.
+- **Frames** are image elements with a `mask` shape. Drop an image on a frame, or click a photo while a frame is selected, to fill it.
+- **Animation:** the compositor gives every animated element its own layer and applies `animState()` per frame. Page transitions blend the previous scene's last frame with the new scene.

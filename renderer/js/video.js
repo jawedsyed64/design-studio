@@ -82,7 +82,8 @@
           ref, name: item.name.replace(/\.[^.]+$/, ''), kind: item.kind,
           duration: Math.round((info.duration || 0) * 100) / 100,
           w: info.w || 0, h: info.h || 0,
-          poster: info.poster ? D.addAsset(doc, info.poster) : ''
+          poster: info.poster ? D.addAsset(doc, info.poster) : '',
+          credit: item.credit || null
         };
         doc.media.push(entry);
         added.push(entry);
@@ -182,7 +183,22 @@
         if (el.hidden) continue;
         if (el.type === 'video' && el.src) {
           await flush();
-          layers.push({ kind: 'video', id: el.id });
+          layers.push({ kind: 'video', id: el.id, el });
+        } else if (isAnimated(el)) {
+          // animated elements get a layer of their own so they can move independently
+          await flush();
+          const svg = render.renderPage({ background: page.background, elements: [el] }, this.doc.format, {
+            measure: ui.measure, transparent: true,
+            resolveSrc: (src) => D.resolveAsset(this.doc, src),
+            outW: this.canvas.width, outH: this.canvas.height
+          });
+          const url = URL.createObjectURL(new Blob([svg.svg], { type: 'image/svg+xml' }));
+          const img = new Image();
+          img.src = url;
+          await img.decode().catch(() => {});
+          URL.revokeObjectURL(url);
+          const b = D.bounds(Object.assign({}, el, { h: svg.heights[el.id] || el.h }));
+          layers.push({ kind: 'anim', img, el, b });
         } else statics.push(el);
       }
       await flush();
@@ -203,18 +219,80 @@
       return ts + Math.min(local, Math.max(0, len - 0.05));
     }
 
-    draw(sceneIndex) {
-      const ctx = this.ctx, s = this.size;
+    // Draws one scene at `local` seconds into it.
+    drawScene(ctx, sceneIndex, local) {
+      const s = this.size;
       const kx = this.canvas.width / s.w, ky = this.canvas.height / s.h;
       ctx.setTransform(kx, 0, 0, ky, 0, 0);
       ctx.clearRect(0, 0, s.w, s.h);
+      const short = Math.min(s.w, s.h);
       for (const layer of this.sceneLayers[sceneIndex] || []) {
-        if (layer.kind === 'still') ctx.drawImage(layer.img, 0, 0, s.w, s.h);
+        if (layer.kind === 'still') { ctx.drawImage(layer.img, 0, 0, s.w, s.h); continue; }
+        const el = layer.el;
+        const st = animState(el, local, short);
+        if (st.alpha <= 0.001 || st.wipe <= 0.001) continue;
+        const b = layer.b || D.bounds(el);
+        ctx.save();
+        ctx.globalAlpha = st.alpha;
+        if (st.blur > 0.2) ctx.filter = `blur(${st.blur.toFixed(1)}px)`;
+        ctx.translate(b.cx + st.dx, b.cy + st.dy);
+        if (st.rot) ctx.rotate(st.rot * Math.PI / 180);
+        if (st.scale !== 1) ctx.scale(st.scale, st.scale);
+        ctx.translate(-b.cx, -b.cy);
+        if (st.wipe < 1) { ctx.beginPath(); ctx.rect(b.x - 2, b.y - 2, (b.w + 4) * st.wipe, b.h + 4); ctx.clip(); }
+        if (layer.kind === 'anim') ctx.drawImage(layer.img, 0, 0, s.w, s.h);
         else {
           const v = this.videos.get(layer.id);
           if (v) drawVideo(ctx, v.el, v.video);
         }
+        ctx.restore();
       }
+    }
+
+    offscreen(i) {
+      this.off = this.off || [];
+      let c = this.off[i];
+      if (!c) { c = this.off[i] = document.createElement('canvas'); }
+      if (c.width !== this.canvas.width || c.height !== this.canvas.height) { c.width = this.canvas.width; c.height = this.canvas.height; }
+      return c;
+    }
+
+    // Draws the frame at time t, including the transition between scenes.
+    render(t) {
+      const scene = this.sceneAt(t);
+      const local = t - scene.start;
+      const tr = this.doc.pages[scene.index].transition;
+      const W = this.canvas.width, H = this.canvas.height;
+      if (scene.index > 0 && tr && tr.type && tr.type !== 'none' && local < (tr.duration || 0.6)) {
+        const raw = local / (tr.duration || 0.6);
+        const p = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+        const prev = this.tl.scenes[scene.index - 1];
+        const A = this.offscreen(0), B = this.offscreen(1);
+        this.drawScene(A.getContext('2d'), prev.index, prev.duration);
+        this.drawScene(B.getContext('2d'), scene.index, local);
+        const ctx = this.ctx;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+        switch (tr.type) {
+          case 'slide-left': ctx.drawImage(A, -p * W, 0); ctx.drawImage(B, (1 - p) * W, 0); break;
+          case 'slide-up': ctx.drawImage(A, 0, -p * H); ctx.drawImage(B, 0, (1 - p) * H); break;
+          case 'wipe': ctx.drawImage(A, 0, 0); ctx.beginPath(); ctx.rect(0, 0, p * W, H); ctx.clip(); ctx.drawImage(B, 0, 0); break;
+          case 'circle': ctx.drawImage(A, 0, 0); ctx.beginPath(); ctx.arc(W / 2, H / 2, p * Math.hypot(W, H) / 2, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(B, 0, 0); break;
+          case 'zoom': {
+            ctx.drawImage(A, 0, 0);
+            ctx.globalAlpha = p;
+            const k = 1.25 - 0.25 * p;
+            ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2);
+            ctx.drawImage(B, 0, 0);
+            break;
+          }
+          default: ctx.drawImage(A, 0, 0); ctx.globalAlpha = p; ctx.drawImage(B, 0, 0);
+        }
+        ctx.restore();
+        return;
+      }
+      this.drawScene(this.ctx, scene.index, local);
     }
 
     // Keeps every clip at the right position for time t.
@@ -270,7 +348,7 @@
         const t = (performance.now() - this.t0) / 1000;
         if (t >= this.tl.total) {
           this.time = this.tl.total;
-          this.draw(this.tl.scenes.length - 1);
+          this.render(this.tl.total - 0.001);
           this.stop();
           if (this.onTime) this.onTime(this.tl.total);
           if (this.onEnd) this.onEnd();
@@ -278,7 +356,7 @@
         }
         this.time = t;
         const scene = this.sync(t, true);
-        this.draw(scene.index);
+        this.render(t);
         if (this.onTime) this.onTime(t);
         if (this.o.timer === 'raf') this.raf = requestAnimationFrame(tick);
       };
@@ -303,7 +381,7 @@
       const waits = [];
       for (const [id, v] of this.videos) if (pageEls.has(id) && v.video.seeking) waits.push(once(v.video, ['seeked'], ['error'], 3000).catch(() => {}));
       await Promise.all(waits);
-      this.draw(scene.index);
+      this.render(t);
     }
 
     destroy() {
@@ -312,6 +390,64 @@
       for (const a of this.audios.values()) { a.audio.removeAttribute('src'); a.audio.load(); }
       if (this.ac) this.ac.close().catch(() => {});
     }
+  }
+
+  function isAnimated(el) {
+    return !!(el.anim && ((el.anim.in && el.anim.in !== 'none') || (el.anim.loop && el.anim.loop !== 'none')));
+  }
+
+  const easeOut = (p) => 1 - Math.pow(1 - p, 3);
+  function easeBack(p) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+  function easeBounce(p) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (p < 1 / d1) return n1 * p * p;
+    if (p < 2 / d1) return n1 * (p -= 1.5 / d1) * p + 0.75;
+    if (p < 2.5 / d1) return n1 * (p -= 2.25 / d1) * p + 0.9375;
+    return n1 * (p -= 2.625 / d1) * p + 0.984375;
+  }
+
+  // Position/opacity changes for an element `local` seconds into its scene.
+  function animState(el, local, short) {
+    const st = { alpha: 1, dx: 0, dy: 0, scale: 1, rot: 0, wipe: 1, blur: 0 };
+    const a = el.anim || {};
+    const d = Math.max(0.05, +a.duration || 0.8);
+    const delay = +a.delay || 0;
+    if (a.in && a.in !== 'none') {
+      const p = Math.max(0, Math.min(1, (local - delay) / d));
+      const e = easeOut(p);
+      switch (a.in) {
+        case 'fade': st.alpha = e; break;
+        case 'rise': st.alpha = e; st.dy = (1 - e) * short * 0.12; break;
+        case 'drop': st.alpha = e; st.dy = -(1 - e) * short * 0.12; break;
+        case 'slide-left': st.alpha = Math.min(1, p * 2); st.dx = (1 - e) * short * 0.35; break;
+        case 'slide-right': st.alpha = Math.min(1, p * 2); st.dx = -(1 - e) * short * 0.35; break;
+        case 'pop': st.scale = Math.max(0.001, easeBack(p)); st.alpha = Math.min(1, p * 3); break;
+        case 'zoom': st.scale = 1 + (1 - e) * 0.6; st.alpha = e; break;
+        case 'wipe': st.wipe = e; break;
+        case 'bounce': st.dy = -(1 - easeBounce(p)) * short * 0.25; st.alpha = Math.min(1, p * 4); break;
+        case 'spin': st.rot = -(1 - e) * 180; st.scale = 0.3 + 0.7 * e; st.alpha = e; break;
+        case 'blur': st.blur = (1 - e) * 24; st.alpha = e; break;
+        case 'typewriter': {
+          const n = el.type === 'text' ? Math.max(1, [...String(el.text || '')].length) : 12;
+          st.wipe = p >= 1 ? 1 : Math.floor(p * n) / n;
+          break;
+        }
+        default: break;
+      }
+    }
+    if (a.loop && a.loop !== 'none') {
+      const t = Math.max(0, local - delay - (a.in && a.in !== 'none' ? d : 0));
+      const TAU = Math.PI * 2;
+      switch (a.loop) {
+        case 'pulse': st.scale *= 1 + 0.06 * Math.sin(TAU * t / 1.2); break;
+        case 'float': st.dy += Math.sin(TAU * t / 2.4) * short * 0.015; break;
+        case 'wiggle': st.rot += Math.sin(TAU * t / 0.6) * 4; break;
+        case 'rotate': st.rot += (t * 90) % 360; break;
+        case 'blink': st.alpha *= 0.6 + 0.4 * Math.cos(TAU * t / 1.2); break;
+        default: break;
+      }
+    }
+    return st;
   }
 
   function roundRectPath(ctx, w, hh, r) {
@@ -489,5 +625,5 @@
     }
   }
 
-  root.DS.video = { fmtTime, probe, importClips, Compositor, preview, exportMp4, drawVideo };
+  root.DS.video = { fmtTime, probe, importClips, Compositor, preview, exportMp4, drawVideo, animState, isAnimated };
 })(self);

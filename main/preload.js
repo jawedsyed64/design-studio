@@ -35,6 +35,13 @@ contextBridge.exposeInMainWorld('api', {
   exportStreamAbort: (token) => ipcRenderer.invoke('export:stream-abort', token),
   onExportProgress: (cb) => { const fn = (_e, v) => cb(v); ipcRenderer.on('export:progress', fn); return () => ipcRenderer.removeListener('export:progress', fn); },
 
+  // asset library & API keys
+  librarySearch: (opts) => ipcRenderer.invoke('library:search', opts),
+  libraryDownload: (item) => ipcRenderer.invoke('library:download', item),
+  keysStatus: () => ipcRenderer.invoke('keys:status'),
+  setKey: (provider, key) => ipcRenderer.invoke('keys:set', provider, key),
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+
   onMenu: (cb) => ipcRenderer.on('menu', (_e, cmd) => cb(cmd)),
   onBeforeClose: (cb) => ipcRenderer.on('app:before-close', () => cb())
 });

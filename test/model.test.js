@@ -170,3 +170,34 @@ test('video: video elements render their poster and keep poster assets on prune'
   const migrated = D.migrate(JSON.parse(JSON.stringify({ format: doc.format, pages: [{ elements: [] }] })));
   assert.ok(Array.isArray(migrated.audio) && migrated.pages[0].duration === 5);
 });
+
+test('library: graphics render with colours and unsafe markup is stripped', () => {
+  const p = D.newPage();
+  p.elements.push(D.createElement('graphic', { markup: '<circle cx="50" cy="50" r="40" fill="{c1}" onload="alert(1)"/><script>alert(2)</script><foreignObject><div/></foreignObject>', color1: '#ff0000' }));
+  const { svg } = R.renderPage(p, formats.byId('ig-post'), { measure });
+  assert.ok(svg.includes('fill="#ff0000"'));
+  assert.ok(!/onload|<script|foreignObject/i.test(svg));
+});
+
+test('library: every frame mask, shape and line style renders', () => {
+  const p = D.newPage();
+  for (const mask of ['rect', 'ellipse', 'polaroid', 'arch', 'heart', 'star', 'hexagon', 'blob', 'pill', 'cloud', 'diamond', 'triangle', 'octagon', 'burst', 'semicircle', 'none']) {
+    p.elements.push(D.createElement('image', { mask, src: mask === 'none' ? 'data:image/png;base64,AA' : '' }));
+  }
+  for (const shape of R.SHAPES) p.elements.push(D.createElement('shape', { shape }));
+  for (const lineStyle of ['straight', 'wavy', 'zigzag', 'double']) p.elements.push(D.createElement('line', { lineStyle, w: 300 }));
+  const { svg } = R.renderPage(p, formats.byId('ig-post'), { measure });
+  assert.ok(svg.startsWith('<svg') && !svg.includes('NaN') && !svg.includes('undefined'));
+});
+
+test('library: credits are collected once and motion makes a video', () => {
+  const doc = D.newDocument(formats.byId('ig-post'));
+  const credit = { title: 'Sunset', creator: 'Ann', license: 'CC BY 4.0', attribution: true, url: 'u' };
+  doc.pages[0].elements.push(D.createElement('image', { credit }), D.createElement('image', { credit: Object.assign({}, credit) }));
+  doc.audio.push(D.createAudioTrack({ credit: { title: 'Song', license: 'CC0', attribution: false } }));
+  assert.strictEqual(D.credits(doc).length, 2);
+  const d2 = D.newDocument(formats.byId('ig-post'));
+  assert.strictEqual(D.isVideoDoc(d2), false);
+  d2.pages[0].elements.push(D.createElement('text', { anim: { in: 'rise', loop: 'none', duration: 1, delay: 0 } }));
+  assert.strictEqual(D.isVideoDoc(d2), true);
+});

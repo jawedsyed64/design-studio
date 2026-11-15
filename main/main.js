@@ -8,6 +8,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const crypto = require('crypto');
 const media = require('./media');
+const library = require('./library');
 
 const PROJECT_EXT = '.dstudio';
 let mainWindow = null;
@@ -155,6 +156,9 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   const s = Object.assign(await loadSettings(), patch || {});
   await writeFileAtomic(settingsPath(), JSON.stringify(s, null, 2));
   return s;
+});
+ipcMain.handle('shell:open-external', (_e, url) => {
+  if (typeof url === 'string' && /^https:\/\//.test(url)) shell.openExternal(url);
 });
 ipcMain.handle('shell:open-projects-folder', () => shell.openPath(projectsDir()));
 ipcMain.handle('shell:show-item', (_e, p) => {
@@ -356,6 +360,7 @@ if (!gotLock) {
   });
   pendingOpenPath = pathFromArgv(process.argv);
   media.init({ projectsDir, getWindow: () => mainWindow });
+  library.init({ settingsPath, mediaDir: media.mediaDir });
   app.whenReady().then(() => {
     media.handleProtocol();
     buildMenu();

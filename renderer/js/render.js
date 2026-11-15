@@ -127,10 +127,64 @@
     calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     star: '<polygon points="12,3 14.7,9 21,9.6 16.2,13.8 17.6,20.2 12,16.9 6.4,20.2 7.8,13.8 3,9.6 9.3,9"/>',
     heart: '<path d="M12 20s-7.5-4.6-9-9.6C2 6.9 4.4 4 7.5 4c2 0 3.5 1.2 4.5 2.8C13 5.2 14.5 4 16.5 4 19.6 4 22 6.9 21 10.4 19.5 15.4 12 20 12 20z"/>',
-    search: '<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>'
+    search: '<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>',
+    camera: '<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+    video: '<rect x="2.5" y="6" width="13" height="12" rx="2"/><polygon points="15.5,10.5 21.5,7 21.5,17 15.5,13.5"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="17.5" x2="12" y2="21"/>',
+    cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M2.5 3.5h3l2.6 11.5h10.4l2-8H6.6"/>',
+    bag: '<path d="M5 8h14l-1 13H6z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>',
+    gift: '<rect x="3.5" y="9" width="17" height="12" rx="1"/><rect x="2.5" y="6" width="19" height="3.5" rx="1"/><line x1="12" y1="6" x2="12" y2="21"/><path d="M12 6c-1.5-3.5-6-3.5-5 0M12 6c1.5-3.5 6-3.5 5 0"/>',
+    tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+    trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+    share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.2" y1="10.8" x2="15.8" y2="7.2"/><line x1="8.2" y1="13.2" x2="15.8" y2="16.8"/>',
+    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    shield: '<path d="M12 2.5l8 3.5v6c0 5-3.5 8.5-8 9.5-4.5-1-8-4.5-8-9.5V6z"/><polyline points="8.5,12 11,14.5 15.5,9.5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+    moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+    cloud: '<path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 10a4 4 0 0 1-.5 8z"/>',
+    leaf: '<path d="M5 19C5 9 11 4 20 4c0 9-5 15-15 15z"/><path d="M5 19l8-8"/>',
+    flower: '<circle cx="12" cy="12" r="2.5"/><path d="M12 9.5C10 6 10.5 3 12 3s2 3 0 6.5M14.5 12c3.5-2 6.5-1.5 6.5 0s-3 2-6.5 0M12 14.5c2 3.5 1.5 6.5 0 6.5s-2-3 0-6.5M9.5 12C6 14 3 13.5 3 12s3-2 6.5 0"/>',
+    coffee: '<path d="M4 9h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c-.8 1 .8 2 0 3M12 3.5c-.8 1 .8 2 0 3"/>',
+    food: '<path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11"/><path d="M17 3c-2 0-3 2.5-3 6s1 4 3 4v8"/>',
+    car: '<path d="M3 16v-4l2.5-5h13L21 12v4z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><line x1="3" y1="12" x2="21" y2="12"/>',
+    plane: '<path d="M21 15.5v-2L13.5 9V4a1.5 1.5 0 0 0-3 0v5L3 13.5v2l7.5-2.5v4.5L8 19.5V21l4-1 4 1v-1.5l-2.5-2V13z"/>',
+    book: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H20v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H20"/>',
+    graduation: '<polygon points="12,4 22,9 12,14 2,9"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5"/><line x1="22" y1="9" x2="22" y2="15"/>',
+    briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8.5 7V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 5v2"/><line x1="3" y1="13" x2="21" y2="13"/>',
+    chart: '<line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="11" width="3" height="7"/><rect x="11" y="6" width="3" height="12"/><rect x="16" y="13" width="3" height="5"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+    lightbulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+    rocket: '<path d="M12 2.5c4 2.5 5.5 7 4.5 11.5h-9C6.5 9.5 8 5 12 2.5z"/><circle cx="12" cy="9" r="1.8"/><path d="M7.5 14L5 17l2.5 1M16.5 14l2.5 3-2.5 1M10 17.5l2 3.5 2-3.5"/>',
+    wifi: '<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/>',
+    download: '<path d="M12 3v12"/><polyline points="7,10 12,15 17,10"/><path d="M4 17v3h16v-3"/>',
+    upload: '<path d="M12 15V3"/><polyline points="7,8 12,3 17,8"/><path d="M4 17v3h16v-3"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+    thumbsUp: '<path d="M7 10v11H3V10z"/><path d="M7 10l4-7a2.5 2.5 0 0 1 2.5 3L13 10h6a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.8 21H7"/>',
+    smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14.5a5 5 0 0 0 8 0"/><line x1="9" y1="9.5" x2="9" y2="10"/><line x1="15" y1="9.5" x2="15" y2="10"/>',
+    flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4.5L17 13H5"/>',
+    crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>',
+    diamond: '<polygon points="6,3 18,3 22,9 12,21 2,9"/><polyline points="2,9 22,9"/><polyline points="9,3 12,9 15,3"/>',
+    fire: '<path d="M12 22c4 0 7-2.7 7-7 0-4.5-4-6.5-4.5-11-2.5 2-4 4.5-3.5 7.5C9.5 10 8.5 8.5 8.5 7 6 9 5 12 5 15c0 4.3 3 7 7 7z"/>',
+    sparkle: '<path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r=".6"/>',
+    question: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7v.5"/><circle cx="12" cy="17" r=".6"/>',
+    whatsapp: '<path d="M4 20l1.3-4A8.5 8.5 0 1 1 8.5 19z"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.5-2-1-1 1c-1-.5-2.5-2-3-3l1-1-1-2z"/>',
+    instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".8"/>',
+    facebook: '<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/>',
+    youtube: '<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><polygon points="10,9 15.5,12 10,15"/>',
+    linkedin: '<rect x="3" y="3" width="18" height="18" rx="3"/><line x1="8" y1="10.5" x2="8" y2="17"/><circle cx="8" cy="7.3" r=".7"/><path d="M12 17v-6.5M12 13a3 3 0 0 1 5 0v4"/>',
+    xsocial: '<path d="M4 4l16 16M20 4L4 20"/>',
+    crescent: '<path d="M15 3.5A9 9 0 1 0 20.5 15 7 7 0 1 1 15 3.5z"/><path d="M19 4l.6 1.6 1.7.1-1.3 1.1.4 1.7-1.4-.9-1.4.9.4-1.7-1.3-1.1 1.7-.1z"/>',
+    mosque: '<path d="M6 21v-7a6 6 0 0 1 12 0v7"/><path d="M12 8V5.5M12 5.5a1 1 0 1 0 0-.01"/><line x1="3" y1="21" x2="21" y2="21"/><path d="M3 21V11M21 21V11"/><path d="M10 21v-3a2 2 0 0 1 4 0v3"/>',
+    lantern: '<path d="M9 5h6M12 2v3"/><path d="M8 7h8l1 11H7z"/><path d="M9.5 21h5M10 18l-.5 3M14 18l.5 3"/><path d="M12 10v5"/>'
   };
 
-  const SHAPES = ['rect', 'ellipse', 'triangle', 'diamond', 'pentagon', 'hexagon', 'star', 'heart', 'arrow', 'speech'];
+  const SHAPES = ['rect', 'ellipse', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'burst', 'heart', 'arrow',
+    'speech', 'cloud', 'arch', 'semicircle', 'pill', 'parallelogram', 'trapezoid', 'cross', 'blob', 'ring', 'chevron'];
 
   function strokeDash(dash, sw) {
     if (dash === 'dashed') return ` stroke-dasharray="${n(sw * 3)} ${n(sw * 2)}"`;
@@ -176,6 +230,37 @@
         const d = `M${n(r)} 0 H${n(w - r)} Q${n(w)} 0 ${n(w)} ${n(r)} V${n(bh - r)} Q${n(w)} ${n(bh)} ${n(w - r)} ${n(bh)} H${n(w * 0.38)} L${n(w * 0.2)} ${n(h)} L${n(w * 0.24)} ${n(bh)} H${n(r)} Q0 ${n(bh)} 0 ${n(bh - r)} V${n(r)} Q0 0 ${n(r)} 0Z`;
         return `<path d="${d}" ${common}/>`;
       }
+      case 'octagon':
+        return `<polygon points="${polygonPoints(regular(w, h, 8, 22.5))}" ${common}/>`;
+      case 'burst':
+        return `<polygon points="${polygonPoints(star(w, h, Math.max(8, el.points || 16), 0.8))}" ${common}/>`;
+      case 'cloud': {
+        const d = `M${n(w * 0.25)} ${n(h * 0.85)} C${n(w * 0.05)} ${n(h * 0.85)} 0 ${n(h * 0.6)} ${n(w * 0.12)} ${n(h * 0.5)} C${n(w * 0.06)} ${n(h * 0.25)} ${n(w * 0.3)} ${n(h * 0.12)} ${n(w * 0.42)} ${n(h * 0.25)} C${n(w * 0.5)} 0 ${n(w * 0.85)} ${n(h * 0.05)} ${n(w * 0.8)} ${n(h * 0.35)} C${n(w)} ${n(h * 0.38)} ${n(w)} ${n(h * 0.85)} ${n(w * 0.78)} ${n(h * 0.85)}Z`;
+        return `<path d="${d}" ${common}/>`;
+      }
+      case 'arch':
+        return `<path d="M0 ${n(h)} V${n(Math.min(w / 2, h))} A${n(w / 2)} ${n(Math.min(w / 2, h))} 0 0 1 ${n(w)} ${n(Math.min(w / 2, h))} V${n(h)}Z" ${common}/>`;
+      case 'semicircle':
+        return `<path d="M0 ${n(h)} A${n(w / 2)} ${n(h)} 0 0 1 ${n(w)} ${n(h)}Z" ${common}/>`;
+      case 'pill':
+        return `<rect width="${n(w)}" height="${n(h)}" rx="${n(Math.min(w, h) / 2)}" ${common}/>`;
+      case 'parallelogram':
+        return `<polygon points="${polygonPoints([[w * 0.25, 0], [w, 0], [w * 0.75, h], [0, h]])}" ${common}/>`;
+      case 'trapezoid':
+        return `<polygon points="${polygonPoints([[w * 0.2, 0], [w * 0.8, 0], [w, h], [0, h]])}" ${common}/>`;
+      case 'cross':
+        return `<polygon points="${polygonPoints([[w / 3, 0], [w * 2 / 3, 0], [w * 2 / 3, h / 3], [w, h / 3], [w, h * 2 / 3], [w * 2 / 3, h * 2 / 3], [w * 2 / 3, h], [w / 3, h], [w / 3, h * 2 / 3], [0, h * 2 / 3], [0, h / 3], [w / 3, h / 3]])}" ${common}/>`;
+      case 'chevron':
+        return `<polygon points="${polygonPoints([[0, 0], [w * 0.7, 0], [w, h / 2], [w * 0.7, h], [0, h], [w * 0.3, h / 2]])}" ${common}/>`;
+      case 'blob': {
+        const d = `M${n(w * 0.5)} ${n(h * 0.02)} C${n(w * 0.78)} ${n(h * 0.0)} ${n(w * 1.0)} ${n(h * 0.22)} ${n(w * 0.97)} ${n(h * 0.5)} C${n(w * 0.95)} ${n(h * 0.8)} ${n(w * 0.72)} ${n(h * 1.0)} ${n(w * 0.45)} ${n(h * 0.97)} C${n(w * 0.18)} ${n(h * 0.95)} ${n(w * 0.0)} ${n(h * 0.75)} ${n(w * 0.04)} ${n(h * 0.47)} C${n(w * 0.08)} ${n(h * 0.2)} ${n(w * 0.25)} ${n(h * 0.04)} ${n(w * 0.5)} ${n(h * 0.02)}Z`;
+        return `<path d="${d}" ${common}/>`;
+      }
+      case 'ring': {
+        const t = Math.min(w, h) * 0.18;
+        const d = `M0 ${n(h / 2)} A${n(w / 2)} ${n(h / 2)} 0 1 0 ${n(w)} ${n(h / 2)} A${n(w / 2)} ${n(h / 2)} 0 1 0 0 ${n(h / 2)}Z M${n(t)} ${n(h / 2)} A${n(w / 2 - t)} ${n(h / 2 - t)} 0 1 1 ${n(w - t)} ${n(h / 2)} A${n(w / 2 - t)} ${n(h / 2 - t)} 0 1 1 ${n(t)} ${n(h / 2)}Z`;
+        return `<path d="${d}" fill-rule="evenodd" ${common}/>`;
+      }
       default: {
         const r = Math.min(+el.radius || 0, w / 2, h / 2);
         return `<rect x="0" y="0" width="${n(w)}" height="${n(h)}"${r ? ` rx="${n(r)}"` : ''} ${common}/>`;
@@ -210,6 +295,15 @@
     return `<filter id="${id}" color-interpolation-filters="sRGB">${parts.join('')}</filter>`;
   }
 
+  // Graphics carry their own SVG markup. Strip anything active, so a crafted project file can't run code.
+  function sanitizeMarkup(m) {
+    return String(m)
+      .replace(/<\s*(script|foreignObject|iframe|object|embed|style)[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+      .replace(/<\s*(script|foreignObject|iframe|object|embed|style)[^>]*\/?>/gi, '')
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/(href|xlink:href)\s*=\s*("|')\s*(javascript|https?|file|data:text):[^"']*\2/gi, '');
+  }
+
   // ----- elements -----
   function elementMarkup(el, ctx) {
     const id = sid(el.id);
@@ -235,23 +329,64 @@
       if (el.startCap === 'circle') extras += `<circle cx="0" cy="0" r="${n(sw * 1.5)}" ${cc}/>`;
       if (el.endCap === 'arrow') { x2 = el.w - head * 0.8; extras += `<polygon points="${polygonPoints([[el.w, 0], [el.w - head, -head * 0.6], [el.w - head, head * 0.6]])}" ${cc}/>`; }
       if (el.endCap === 'circle') extras += `<circle cx="${n(el.w)}" cy="0" r="${n(sw * 1.5)}" ${cc}/>`;
-      body = `<line x1="${n(x1)}" y1="0" x2="${n(x2)}" y2="0" ${paintAttrs('stroke', el.stroke)} stroke-width="${n(sw)}"${cap}${strokeDash(el.strokeDash, sw)}/>${extras}`;
+      const stroke = `${paintAttrs('stroke', el.stroke)} stroke-width="${n(sw)}"${cap}${strokeDash(el.strokeDash, sw)} fill="none" stroke-linejoin="round"`;
+      if (el.lineStyle === 'wavy' || el.lineStyle === 'zigzag') {
+        const amp = Math.max(sw * 1.5, 4), wl = Math.max(sw * 6, 16);
+        let d = `M${n(x1)} 0`;
+        let i = 0;
+        for (let x = x1; x < x2 - 0.01; x += wl / 2, i++) {
+          const nx = Math.min(x + wl / 2, x2), y = i % 2 ? amp : -amp;
+          d += el.lineStyle === 'wavy' ? ` Q${n((x + nx) / 2)} ${n(y * 2)} ${n(nx)} 0` : ` L${n((x + nx) / 2)} ${n(y)} L${n(nx)} 0`;
+        }
+        body = `<path d="${d}" ${stroke}/>${extras}`;
+      } else if (el.lineStyle === 'double') {
+        body = `<line x1="${n(x1)}" y1="${n(-sw)}" x2="${n(x2)}" y2="${n(-sw)}" ${stroke}/><line x1="${n(x1)}" y1="${n(sw)}" x2="${n(x2)}" y2="${n(sw)}" ${stroke}/>${extras}`;
+      } else {
+        body = `<line x1="${n(x1)}" y1="0" x2="${n(x2)}" y2="0" ${stroke}/>${extras}`;
+      }
     } else if (el.type === 'image' || el.type === 'video') {
       const fitMap = { cover: 'xMidYMid slice', contain: 'xMidYMid meet', stretch: 'none' };
       const r = Math.min(+el.radius || 0, el.w / 2, el.h / 2);
-      defs.push(`<clipPath id="${id}-c"><rect width="${n(el.w)}" height="${n(el.h)}"${r ? ` rx="${n(r)}"` : ''}/></clipPath>`);
+      const mask = el.mask && el.mask !== 'none' ? el.mask : null;
+      // photo frames: polaroid keeps a white card around the picture, other frames clip to a shape
+      let ix = 0, iy = 0, iw = el.w, ih = el.h;
+      let frameBg = '';
+      if (mask === 'polaroid') {
+        const pad = Math.min(el.w, el.h) * 0.06;
+        ix = pad; iy = pad; iw = el.w - 2 * pad; ih = el.h - pad - Math.min(el.w, el.h) * 0.2;
+        frameBg = `<rect width="${n(el.w)}" height="${n(el.h)}" rx="${n(Math.min(el.w, el.h) * 0.01)}" ${paintAttrs('fill', el.frameColor || '#ffffff')}/>`;
+      }
+      const clipShape = mask && mask !== 'polaroid'
+        ? shapeMarkup({ shape: mask, w: el.w, h: el.h, radius: mask === 'rect' ? Math.min(el.w, el.h) * 0.12 : 0, points: 5, strokeWidth: 0 }, '')
+        : `<rect x="${n(ix)}" y="${n(iy)}" width="${n(iw)}" height="${n(ih)}"${r && !mask ? ` rx="${n(r)}"` : ''}/>`;
+      defs.push(`<clipPath id="${id}-c">${clipShape}</clipPath>`);
       const flt = imageFilter(id + '-f', el.filters || {});
       if (flt) defs.push(flt);
       const raw = el.type === 'video' ? el.poster : el.src;
       const href = ctx.resolveSrc ? ctx.resolveSrc(raw) : raw;
-      body = `<g clip-path="url(#${id}-c)"><image width="${n(el.w)}" height="${n(el.h)}" preserveAspectRatio="${fitMap[el.fit] || fitMap.cover}" xlink:href="${esc(href)}"${flt ? ` filter="url(#${id}-f)"` : ''}/></g>`;
-      if (el.strokeWidth > 0) body += `<rect width="${n(el.w)}" height="${n(el.h)}"${r ? ` rx="${n(r)}"` : ''} fill="none" ${paintAttrs('stroke', el.stroke)} stroke-width="${n(el.strokeWidth)}"/>`;
+      if (!href && el.type === 'image') {
+        // empty frame placeholder
+        const k = Math.min(iw, ih) * 0.22;
+        body = `${frameBg}<g clip-path="url(#${id}-c)"><rect x="${n(ix)}" y="${n(iy)}" width="${n(iw)}" height="${n(ih)}" fill="#dfe3ec"/>` +
+          `<g transform="translate(${n(ix + iw / 2 - k / 2)} ${n(iy + ih / 2 - k / 2)}) scale(${n(k / 24 * 1000) / 1000})" fill="none" stroke="#9aa3b5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></g></g>`;
+      } else {
+        body = `${frameBg}<g clip-path="url(#${id}-c)"><image x="${n(ix)}" y="${n(iy)}" width="${n(iw)}" height="${n(ih)}" preserveAspectRatio="${fitMap[el.fit] || fitMap.cover}" xlink:href="${esc(href)}"${flt ? ` filter="url(#${id}-f)"` : ''}/></g>`;
+      }
+      if (el.strokeWidth > 0) {
+        if (mask && mask !== 'polaroid') body += shapeMarkup({ shape: mask, w: el.w, h: el.h, radius: mask === 'rect' ? Math.min(el.w, el.h) * 0.12 : 0, points: 5, strokeWidth: el.strokeWidth, stroke: el.stroke }, 'fill="none"');
+        else body += `<rect width="${n(el.w)}" height="${n(el.h)}"${r ? ` rx="${n(r)}"` : ''} fill="none" ${paintAttrs('stroke', el.stroke)} stroke-width="${n(el.strokeWidth)}"/>`;
+      }
       if (el.type === 'video' && !href) body = `<rect width="${n(el.w)}" height="${n(el.h)}" fill="#1f2333"/>` + body;
       if (el.type === 'video' && ctx.editor) {
         // play badge so videos are recognisable on the canvas (never exported)
         const b = Math.max(18, Math.min(el.w, el.h) * 0.14);
         body += `<g transform="translate(${n(el.w / 2 - b / 2)} ${n(el.h / 2 - b / 2)})" opacity="0.9"><circle cx="${n(b / 2)}" cy="${n(b / 2)}" r="${n(b / 2)}" fill="#000000" fill-opacity="0.55"/><polygon points="${n(b * 0.4)},${n(b * 0.28)} ${n(b * 0.74)},${n(b / 2)} ${n(b * 0.4)},${n(b * 0.72)}" fill="#ffffff"/></g>`;
       }
+    } else if (el.type === 'graphic') {
+      const vb = /^[\d.\s-]+$/.test(el.viewBox || '') ? el.viewBox : '0 0 100 100';
+      const c1 = parseColor(el.color1 || '#6366f1').hex, c2 = parseColor(el.color2 || '#f59e0b').hex, c3 = parseColor(el.color3 || '#ffffff').hex;
+      const markup = sanitizeMarkup(el.markup || '').replace(/\{c1\}/g, esc(c1)).replace(/\{c2\}/g, esc(c2)).replace(/\{c3\}/g, esc(c3));
+      body = `<svg x="0" y="0" width="${n(el.w)}" height="${n(el.h)}" viewBox="${vb}" preserveAspectRatio="${el.keepRatio === false ? 'none' : 'xMidYMid meet'}" overflow="visible">${markup}</svg>`;
     } else if (el.type === 'text') {
       const lay = layoutText(el, ctx.measure);
       h = lay.height;
@@ -338,7 +473,7 @@
     return { svg, heights: ctx.heights, viewBox: { x: vx, y: vy, w: vw, h: vh } };
   }
 
-  const api = { esc, parseColor, fontCss, isRtl, layoutText, renderPage, elementMarkup, SHAPES, ICONS };
+  const api = { esc, parseColor, fontCss, isRtl, layoutText, renderPage, elementMarkup, sanitizeMarkup, SHAPES, ICONS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.DS = root.DS || {}).render = api;
 })(typeof self !== 'undefined' ? self : this);

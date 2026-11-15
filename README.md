@@ -3,14 +3,14 @@
 An AI-powered graphic design and creative studio for Windows, built with Electron.
 Create social media posts, presentations, documents, print designs and merchandise graphics with a drag-and-drop editor, ready-made sizes and templates.
 
-**Current version: 0.2.0 — Phase 1 (Core Design Studio) + video and audio**
+**Current version: 0.3.0 — Phase 1 (Core Design Studio), video and audio, and the asset library**
 
 ## Download and run (no programming needed)
 
 1. Open the **Actions** tab of this repository on GitHub.
 2. Click the latest green **Build Windows app** run.
 3. Under **Artifacts**, download **DesignStudio-Windows** and unzip it.
-4. Run `Design Studio Setup 0.2.0.exe` to install, or `DesignStudio-Portable-0.2.0.exe` to run without installing.
+4. Run `Design Studio Setup 0.3.0.exe` to install, or `DesignStudio-Portable-0.3.0.exe` to run without installing.
 
 Windows may show a "Windows protected your PC" message because the app is not code-signed. Click **More info → Run anyway**.
 
@@ -52,7 +52,20 @@ The app never fakes results. Each feature is either working, waiting for an exte
 | Upload video clips (MP4, MOV, WebM, MKV, AVI, WMV) and audio (MP3, WAV, M4A, AAC, OGG, FLAC); unsupported formats are converted automatically | ✅ Working |
 | Video timeline: pages are scenes with adjustable length, clips with trim, volume, mute and loop, music tracks with start time, trim, volume, fade in/out and repeat | ✅ Working |
 | Video preview with sound, MP4 export (H.264 + AAC, full or reduced resolution) | ✅ Working |
-| Transitions, animated text, captions/subtitles | ⏳ Phase 3 |
+| Asset library in **Elements**: search online photos, illustrations, vectors, video clips and music/sound effects, with a licence badge on every item (Free / Credit required) and a Credits list for the design | ✅ Working |
+| Built-in offline library: 53 recolourable graphics (blobs, waves, badges, ribbons, mockups, Eid/Ramadan art…), 186 emoji stickers, 22 shapes, 69 icons, 16 photo frames, 9 line styles | ✅ Working |
+| Animations: 12 entrance effects, 5 looping effects, and 6 scene transitions, played in preview and MP4 export | ✅ Working |
+| Captions/subtitles, timeline split tool | ⏳ Phase 3 |
+
+### Stock media sources
+
+| Source | What | Key needed? | Licence |
+|---|---|---|---|
+| Openverse | Photos, illustrations, music, sound effects | No | Creative Commons. Only licences that allow commercial use and changes are shown. Items marked *Credit* need attribution. |
+| Pexels | Photos, videos | Free key from pexels.com/api | Pexels License: free, no credit needed |
+| Pixabay | Photos, illustrations, vectors, videos | Free key from pixabay.com/api/docs | Pixabay Content License: free, no credit needed |
+
+Enter the keys under **Settings → Stock photos, videos & music**, or straight from the Elements panel.
 | Website and Link-in-Bio builder | ⏳ Phase 3 |
 | Brand Kit, stock asset library, version history, DOCX export | ⏳ Phase 4 |
 
@@ -74,7 +87,7 @@ The app never fakes results. Each feature is either working, waiting for an exte
 - Website and Link-in-Bio builder that exports a static website folder.
 
 **Phase 4: Advanced Features**
-- Brand Kit, a searchable asset library with licence labels, version history, DOCX export, and advanced animations.
+- Brand Kit, version history, DOCX export, and keyframe animation.
 
 ## Architecture
 
