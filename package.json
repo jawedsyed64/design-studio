@@ -1,7 +1,7 @@
 {
   "name": "design-studio",
   "productName": "Design Studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI-powered graphic design and creative studio for Windows (Electron).",
   "main": "main/main.js",
   "author": "jawedsyed64",
@@ -10,6 +10,9 @@
     "start": "electron .",
     "test": "node --test test/model.test.js",
     "dist": "electron-builder --win nsis portable --publish never"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -26,6 +29,9 @@
       "main/**/*",
       "renderer/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
     ],
     "fileAssociations": [
       {

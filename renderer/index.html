@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: dsmedia:; media-src 'self' blob: dsmedia:; font-src 'self' data:; connect-src 'self' data: blob: dsmedia:">
   <title>Design Studio</title>
   <link rel="stylesheet" href="css/app.css">
 </head>
@@ -65,7 +65,7 @@
     </div>
   </section>
 
-  <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/bmp" multiple hidden>
+  <input type="file" id="file-input" accept="image/*,video/*,audio/*,.mkv,.avi,.wmv,.mov,.m4a,.flac,.opus" multiple hidden>
   <div id="modal-root"></div>
   <div id="toast-root"></div>
 
@@ -75,6 +75,7 @@
   <script src="js/templates.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/exporter.js"></script>
+  <script src="js/video.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/app.js"></script>
 </body>

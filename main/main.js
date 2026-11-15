@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 const crypto = require('crypto');
+const media = require('./media');
 
 const PROJECT_EXT = '.dstudio';
 let mainWindow = null;
@@ -66,7 +67,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      spellcheck: true
+      spellcheck: true,
+      backgroundThrottling: false, // keep video export running if the window is covered
+      autoplayPolicy: 'no-user-gesture-required'
     }
   });
   mainWindow.once('ready-to-show', () => {
@@ -352,7 +355,9 @@ if (!gotLock) {
     }
   });
   pendingOpenPath = pathFromArgv(process.argv);
+  media.init({ projectsDir, getWindow: () => mainWindow });
   app.whenReady().then(() => {
+    media.handleProtocol();
     buildMenu();
     createWindow();
   });

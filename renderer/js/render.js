@@ -236,15 +236,22 @@
       if (el.endCap === 'arrow') { x2 = el.w - head * 0.8; extras += `<polygon points="${polygonPoints([[el.w, 0], [el.w - head, -head * 0.6], [el.w - head, head * 0.6]])}" ${cc}/>`; }
       if (el.endCap === 'circle') extras += `<circle cx="${n(el.w)}" cy="0" r="${n(sw * 1.5)}" ${cc}/>`;
       body = `<line x1="${n(x1)}" y1="0" x2="${n(x2)}" y2="0" ${paintAttrs('stroke', el.stroke)} stroke-width="${n(sw)}"${cap}${strokeDash(el.strokeDash, sw)}/>${extras}`;
-    } else if (el.type === 'image') {
+    } else if (el.type === 'image' || el.type === 'video') {
       const fitMap = { cover: 'xMidYMid slice', contain: 'xMidYMid meet', stretch: 'none' };
       const r = Math.min(+el.radius || 0, el.w / 2, el.h / 2);
       defs.push(`<clipPath id="${id}-c"><rect width="${n(el.w)}" height="${n(el.h)}"${r ? ` rx="${n(r)}"` : ''}/></clipPath>`);
       const flt = imageFilter(id + '-f', el.filters || {});
       if (flt) defs.push(flt);
-      const href = ctx.resolveSrc ? ctx.resolveSrc(el.src) : el.src;
+      const raw = el.type === 'video' ? el.poster : el.src;
+      const href = ctx.resolveSrc ? ctx.resolveSrc(raw) : raw;
       body = `<g clip-path="url(#${id}-c)"><image width="${n(el.w)}" height="${n(el.h)}" preserveAspectRatio="${fitMap[el.fit] || fitMap.cover}" xlink:href="${esc(href)}"${flt ? ` filter="url(#${id}-f)"` : ''}/></g>`;
       if (el.strokeWidth > 0) body += `<rect width="${n(el.w)}" height="${n(el.h)}"${r ? ` rx="${n(r)}"` : ''} fill="none" ${paintAttrs('stroke', el.stroke)} stroke-width="${n(el.strokeWidth)}"/>`;
+      if (el.type === 'video' && !href) body = `<rect width="${n(el.w)}" height="${n(el.h)}" fill="#1f2333"/>` + body;
+      if (el.type === 'video' && ctx.editor) {
+        // play badge so videos are recognisable on the canvas (never exported)
+        const b = Math.max(18, Math.min(el.w, el.h) * 0.14);
+        body += `<g transform="translate(${n(el.w / 2 - b / 2)} ${n(el.h / 2 - b / 2)})" opacity="0.9"><circle cx="${n(b / 2)}" cy="${n(b / 2)}" r="${n(b / 2)}" fill="#000000" fill-opacity="0.55"/><polygon points="${n(b * 0.4)},${n(b * 0.28)} ${n(b * 0.74)},${n(b / 2)} ${n(b * 0.4)},${n(b * 0.72)}" fill="#ffffff"/></g>`;
+      }
     } else if (el.type === 'text') {
       const lay = layoutText(el, ctx.measure);
       h = lay.height;

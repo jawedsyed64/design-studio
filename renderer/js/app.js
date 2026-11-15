@@ -248,8 +248,8 @@
     const g = formats.GROUPS.find((x) => x.id === item.group);
     main.appendChild(h('h1.page-h', null, item.label));
     if (item.group === 'video') {
-      main.appendChild(h('div.notice', null, h('strong', null, 'Video Studio — Phase 3. '),
-        'You can already design video frames, thumbnails and covers at the correct sizes and export them as images. Timeline editing, music, transitions, captions and MP4 export are being added in Phase 3.'));
+      main.appendChild(h('div.notice', null, h('strong', null, 'How video works: '),
+        'pick a size, then in the editor open Uploads → “Upload video or audio”. Each page is a scene on the timeline; add text and graphics on top of your clips, add music, press ▶ Play to preview, and Export → MP4. Transitions, animated text and captions are coming in Phase 3.'));
     }
     main.appendChild(h('div.section-head', null, h('h2', null, 'Sizes')));
     const grid = h('div.fmt-grid');
@@ -377,7 +377,8 @@
       ['Background remover (on-device)', 'Phase 2'],
       ['Magic Resize (smart re-layout)', 'Phase 2 · manual resize works now'],
       ['Presentation mode, slide transitions, PPTX export', 'Phase 3'],
-      ['Video timeline editor, MP4 export', 'Phase 3'],
+      ['Video & audio upload, scene timeline, clip trimming, music tracks with fades, preview, MP4 export', 'Ready'],
+      ['Transitions, animated text, captions, advanced video editing', 'Phase 3'],
       ['Website & Link-in-Bio builder', 'Phase 3'],
       ['Brand Kit, asset library, version history', 'Phase 4']
     ];

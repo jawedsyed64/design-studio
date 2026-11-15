@@ -143,3 +143,30 @@ test('templates: best matches come first', () => {
   assert.strictEqual(T.forFormat(formats.byId('resume'))[0].id, 'modern-resume');
   assert.strictEqual(T.forFormat(formats.byId('yt-thumbnail'))[0].id, 'yt-pop');
 });
+
+test('video: timeline scenes, clip length and media detection', () => {
+  const doc = D.newDocument(formats.byId('yt-video'));
+  doc.pages[0].duration = 4;
+  doc.pages.push(Object.assign(D.newPage(), { duration: 2.5 }));
+  const tl = D.timeline(doc);
+  assert.strictEqual(tl.total, 6.5);
+  assert.deepStrictEqual(tl.scenes.map((s) => s.start), [0, 4]);
+  assert.strictEqual(D.clipLength({ duration: 10, trimStart: 2, trimEnd: 0 }), 8);
+  assert.strictEqual(D.clipLength({ duration: 10, trimStart: 2, trimEnd: 5 }), 3);
+  const post = D.newDocument(formats.byId('ig-post'));
+  assert.strictEqual(D.isVideoDoc(post), false);
+  post.audio.push(D.createAudioTrack({ src: 'media:a.mp3', duration: 3 }));
+  assert.strictEqual(D.isVideoDoc(post), true);
+});
+
+test('video: video elements render their poster and keep poster assets on prune', () => {
+  const doc = D.newDocument(formats.byId('yt-video'));
+  const poster = D.addAsset(doc, 'data:image/jpeg;base64,AAAA');
+  doc.pages[0].elements.push(D.createElement('video', { src: 'media:x.mp4', poster, duration: 5 }));
+  D.pruneAssets(doc);
+  assert.strictEqual(Object.keys(doc.assets).length, 1);
+  const { svg } = R.renderPage(doc.pages[0], doc.format, { measure, resolveSrc: (s) => D.resolveAsset(doc, s) });
+  assert.ok(svg.includes('data:image/jpeg;base64,AAAA'));
+  const migrated = D.migrate(JSON.parse(JSON.stringify({ format: doc.format, pages: [{ elements: [] }] })));
+  assert.ok(Array.isArray(migrated.audio) && migrated.pages[0].duration === 5);
+});

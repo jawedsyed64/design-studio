@@ -1,5 +1,5 @@
 // Exposes a small, explicit API to the renderer. Nothing else from Node/Electron leaks through.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   appInfo: () => ipcRenderer.invoke('app:info'),
@@ -23,6 +23,17 @@ contextBridge.exposeInMainWorld('api', {
   exportSaveFile: (opts) => ipcRenderer.invoke('export:save-file', opts),
   exportSaveMany: (opts) => ipcRenderer.invoke('export:save-many', opts),
   exportPdf: (opts) => ipcRenderer.invoke('export:pdf', opts),
+
+  // video & audio
+  pickMedia: () => ipcRenderer.invoke('media:pick'),
+  importMediaFiles: (files) => ipcRenderer.invoke('media:import', Array.from(files || []).map((f) => webUtils.getPathForFile(f))),
+  mediaUrl: (ref) => 'dsmedia://media/' + encodeURIComponent(String(ref || '').replace(/^media:/, '')),
+  convertMedia: (ref) => ipcRenderer.invoke('media:convert', ref),
+  exportStreamBegin: (opts) => ipcRenderer.invoke('export:stream-begin', opts),
+  exportStreamWrite: (token, data) => ipcRenderer.invoke('export:stream-write', token, data),
+  exportStreamEnd: (token, opts) => ipcRenderer.invoke('export:stream-end', token, opts),
+  exportStreamAbort: (token) => ipcRenderer.invoke('export:stream-abort', token),
+  onExportProgress: (cb) => { const fn = (_e, v) => cb(v); ipcRenderer.on('export:progress', fn); return () => ipcRenderer.removeListener('export:progress', fn); },
 
   onMenu: (cb) => ipcRenderer.on('menu', (_e, cmd) => cb(cmd)),
   onBeforeClose: (cb) => ipcRenderer.on('app:before-close', () => cb())

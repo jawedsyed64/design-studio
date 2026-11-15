@@ -17,7 +17,7 @@
 
   const E = {
     doc: null, filePath: null, pageIndex: 0, sel: [], zoom: 1, history: new D.History(100),
-    dirty: false, saving: false, clipboard: null, snap: true, grid: false, leftTab: 'templates',
+    dirty: false, saving: false, selAudio: null, clipboard: null, snap: true, grid: false, leftTab: 'templates',
     drag: null, editingText: null, spaceDown: false, blobUrls: new Map(), onExit: null
   };
 
@@ -284,6 +284,7 @@
   // ---------------------------------------------------------------- selection
   function select(ids, additive) {
     finishTextEdit();
+    if (E.selAudio) { E.selAudio = null; renderPages(); }
     ids = D.expandGroups(page(), ids);
     if (additive) {
       const allIn = ids.every((id) => E.sel.includes(id));
@@ -785,22 +786,291 @@
   function renderPages() {
     const box = $('pages');
     box.innerHTML = '';
+    const bar = box.parentElement;
+    if (isVideoDoc()) {
+      bar.classList.add('timeline-mode');
+      renderTimeline(box);
+      return;
+    }
+    bar.classList.remove('timeline-mode');
     const s = size();
     const th = 46, tw = Math.max(26, Math.min(110, th * s.w / s.h));
     E.doc.pages.forEach((pg, i) => {
-      const svg = render.renderPage(pg, E.doc.format, { measure: ui.measure, resolveSrc: resolveSrcForEditor, outW: tw, outH: th }).svg;
+      const svg = render.renderPage(pg, E.doc.format, { measure: ui.measure, resolveSrc: (src) => D.resolveAsset(E.doc, src), outW: tw, outH: th }).svg;
       const img = h('img', { src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), width: tw, height: th, draggable: false });
       box.appendChild(h('button.page-thumb' + (i === E.pageIndex ? '.active' : ''), { title: `Page ${i + 1}`, on: { click: () => pageCmd.go(i) } }, img, h('span', null, String(i + 1))));
     });
-    const btn = (ic, title, fn, disabled) => h('button.tb-btn.icon.small', { title, html: icon(ic), disabled: !!disabled, on: { click: fn } });
-    box.appendChild(h('div.page-actions', null,
-      btn('plus', 'Add page', pageCmd.add),
-      btn('copy', 'Duplicate page', pageCmd.duplicate),
-      btn('up', 'Move page left', () => pageCmd.move(-1), E.pageIndex === 0),
-      btn('down', 'Move page right', () => pageCmd.move(1), E.pageIndex === E.doc.pages.length - 1),
-      btn('trash', 'Delete page', pageCmd.remove, E.doc.pages.length < 2)));
-    box.querySelectorAll('.page-actions .tb-btn')[2].style.transform = 'rotate(-90deg)';
-    box.querySelectorAll('.page-actions .tb-btn')[3].style.transform = 'rotate(-90deg)';
+    box.appendChild(pageActions());
+  }
+
+  // ---------------------------------------------------------------- video & audio
+  const isVideoDoc = () => D.isVideoDoc(E.doc);
+  const fmtTime = (t) => root.DS.video.fmtTime(t);
+  const isImageFile = (f) => /^image\//.test(f.type);
+  const isMediaFile = (f) => /^(video|audio)\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv|avi|wmv|mpg|mpeg|3gp|mp3|wav|m4a|aac|ogg|oga|opus|flac|wma)$/i.test(f.name);
+
+  // Routes any uploaded/dropped files: images go on the page, video/audio are imported as clips.
+  async function handleFiles(files, at) {
+    const list = Array.from(files || []);
+    const imgs = list.filter(isImageFile);
+    const media = list.filter((f) => !isImageFile(f) && isMediaFile(f));
+    if (!imgs.length && !media.length) { ui.toast('Please choose an image, video or audio file.', 'error'); return; }
+    if (imgs.length) await addImageFiles(imgs, at);
+    if (media.length) {
+      let imported;
+      try {
+        imported = await window.api.importMediaFiles(media);
+      } catch (err) {
+        ui.toast('Could not import: ' + err.message, 'error');
+        return;
+      }
+      await addImportedClips(imported, at);
+    }
+  }
+
+  async function uploadMedia() {
+    try {
+      const imported = await window.api.pickMedia();
+      if (imported && imported.length) await addImportedClips(imported);
+    } catch (err) {
+      ui.toast('Could not import: ' + err.message, 'error');
+    }
+  }
+
+  async function addImportedClips(imported, at) {
+    const added = await root.DS.video.importClips(E.doc, imported);
+    for (const m of added) {
+      if (m.kind === 'video') addVideoElement(m, at);
+      else addAudioTrack(m);
+    }
+    if (E.leftTab === 'uploads') renderLeftPanel();
+  }
+
+  function addVideoElement(m, at) {
+    const s = size();
+    const w = m.w || 640, hh = m.h || 360;
+    const fill = E.doc.format.kind === 'video' && !at;
+    const props = { src: m.ref, poster: m.poster, naturalW: w, naturalH: hh, duration: m.duration, name: m.name || 'Video' };
+    let el;
+    if (fill) el = D.createElement('video', Object.assign(props, { x: 0, y: 0, w: s.w, h: s.h, fit: 'cover' }));
+    else {
+      const k = Math.min(1, (s.w * 0.6) / w, (s.h * 0.6) / hh);
+      el = D.createElement('video', Object.assign(props, { w: w * k, h: hh * k }));
+    }
+    const pg = page();
+    if (!pg.elements.some((e) => e.type === 'video') && m.duration > 0 && Math.abs(pg.duration - m.duration) > 0.05) {
+      pg.duration = Math.max(0.5, Math.round(m.duration * 10) / 10);
+      ui.toast(`Scene ${E.pageIndex + 1} now lasts ${fmtTime(pg.duration)} to match the video.`);
+    }
+    return addElement(el, fill ? { center: false } : { at });
+  }
+
+  function addAudioTrack(m) {
+    const tl = D.timeline(E.doc);
+    const start = E.doc.audio.length ? 0 : tl.scenes[E.pageIndex].start;
+    const tr = D.createAudioTrack({ src: m.ref, name: m.name || 'Audio', duration: m.duration, start, loop: false });
+    E.doc.audio.push(tr);
+    E.sel = [];
+    E.selAudio = tr.id;
+    commit();
+    renderAll();
+    ui.toast('Audio added to the timeline below the scenes.');
+  }
+
+  function openPreview(t) {
+    finishTextEdit();
+    root.DS.video.preview(E.doc, t || 0).catch((err) => ui.toast('Preview failed: ' + err.message, 'error'));
+  }
+
+  function selectAudio(id) {
+    finishTextEdit();
+    E.sel = [];
+    E.selAudio = id;
+    renderOverlay();
+    renderRightPanel();
+    renderPages();
+  }
+
+  function pageActions() {
+    const btn = (ic, title, fn, disabled, rotate) => h('button.tb-btn.icon.small', { title, html: icon(ic), disabled: !!disabled, style: rotate ? { transform: 'rotate(-90deg)' } : null, on: { click: fn } });
+    const video = isVideoDoc();
+    return h('div.page-actions', null,
+      btn('plus', video ? 'Add scene' : 'Add page', pageCmd.add),
+      btn('copy', video ? 'Duplicate scene' : 'Duplicate page', pageCmd.duplicate),
+      btn('up', 'Move left', () => pageCmd.move(-1), E.pageIndex === 0, true),
+      btn('down', 'Move right', () => pageCmd.move(1), E.pageIndex === E.doc.pages.length - 1, true),
+      btn('trash', video ? 'Delete scene' : 'Delete page', pageCmd.remove, E.doc.pages.length < 2));
+  }
+
+  // The video timeline: scenes (pages) in a row, audio tracks underneath.
+  function renderTimeline(box) {
+    const tl = D.timeline(E.doc);
+    const total = tl.total;
+    const audioEnd = Math.max(0, ...E.doc.audio.map((a) => a.start + D.clipLength(a)));
+    const span = Math.max(total, audioEnd, 1);
+    const avail = Math.max(300, box.clientWidth - 200);
+    const pps = Math.max(24, Math.min(160, avail / span));
+    const side = h('div.tl-side', null,
+      h('button.btn.primary.tl-play', { title: 'Play the video from this scene', on: { click: () => openPreview(tl.scenes[E.pageIndex].start) } }, '▶ Play'),
+      h('div.tl-total', null, 'Length ', h('strong', null, fmtTime(total))),
+      pageActions());
+    const tracks = h('div.tl-tracks', { style: { width: span * pps + 60 + 'px' } });
+
+    const ruler = h('div.tl-ruler');
+    const step = pps >= 60 ? 1 : pps >= 30 ? 2 : 5;
+    for (let t = 0; t <= span + 0.001; t += step) {
+      ruler.appendChild(h('span.tl-tick', { style: { left: t * pps + 'px' } }, fmtTime(t).replace(/\.0$/, '')));
+    }
+    tracks.appendChild(ruler);
+
+    const sceneRow = h('div.tl-row.scenes');
+    const s = size();
+    tl.scenes.forEach((sc) => {
+      const pg = E.doc.pages[sc.index];
+      const th = 38, tw = Math.max(20, Math.round(th * s.w / s.h));
+      const svg = render.renderPage(pg, E.doc.format, { measure: ui.measure, resolveSrc: (src) => D.resolveAsset(E.doc, src), outW: tw, outH: th }).svg;
+      const label = h('span.tl-label', null, `${sc.index + 1} · ${sc.duration.toFixed(1)}s`);
+      const block = h('div.tl-scene' + (sc.index === E.pageIndex ? '.active' : ''), {
+        title: `Scene ${sc.index + 1} — drag the right edge to change its length`,
+        style: { left: sc.start * pps + 'px', width: Math.max(8, sc.duration * pps - 3) + 'px' },
+        on: { click: () => pageCmd.go(sc.index) }
+      }, h('img', { src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), height: th, draggable: false }), label);
+      const handleEl = h('div.tl-handle');
+      handleEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const x0 = e.clientX, d0 = pg.duration;
+        const move = (ev) => {
+          pg.duration = Math.max(0.5, Math.round((d0 + (ev.clientX - x0) / pps) * 10) / 10);
+          block.style.width = Math.max(8, pg.duration * pps - 3) + 'px';
+          label.textContent = `${sc.index + 1} · ${pg.duration.toFixed(1)}s`;
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', () => { window.removeEventListener('pointermove', move); commit(); renderPages(); renderRightPanel(); }, { once: true });
+      });
+      block.appendChild(handleEl);
+      sceneRow.appendChild(block);
+    });
+    tracks.appendChild(sceneRow);
+
+    if (!E.doc.audio.length) {
+      tracks.appendChild(h('div.tl-row.audio.empty', null, h('span.muted.small', null, '♪ No audio yet — Uploads → “Upload video or audio” to add music or a voice-over')));
+    }
+    for (const tr of E.doc.audio) {
+      const len = D.clipLength(tr);
+      const w = (tr.loop ? Math.max(len, total - tr.start) : len) * pps;
+      const row = h('div.tl-row.audio');
+      const block = h('div.tl-audio' + (E.selAudio === tr.id ? '.active' : ''), {
+        title: `${tr.name} — drag to move, click for settings`,
+        style: { left: tr.start * pps + 'px', width: Math.max(14, w) + 'px' }
+      }, h('span.tl-label', null, '♪ ' + tr.name + (tr.loop ? ' (repeats)' : '')));
+      block.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const x0 = e.clientX, s0 = tr.start;
+        let moved = false;
+        const move = (ev) => {
+          const dx = ev.clientX - x0;
+          if (!moved && Math.abs(dx) < 3) return;
+          moved = true;
+          let st = Math.max(0, s0 + dx / pps);
+          for (const sc of tl.scenes) if (Math.abs(sc.start - st) * pps < 8) st = sc.start;
+          tr.start = Math.round(st * 10) / 10;
+          block.style.left = tr.start * pps + 'px';
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', () => {
+          window.removeEventListener('pointermove', move);
+          if (moved) { E.selAudio = tr.id; E.sel = []; commit(); renderAll(); } else selectAudio(tr.id);
+        }, { once: true });
+      });
+      row.appendChild(block);
+      tracks.appendChild(row);
+    }
+    box.appendChild(side);
+    box.appendChild(h('div.tl-scroll', null, tracks));
+  }
+
+  // Generic controls bound to a plain object (audio tracks, pages).
+  function objNum(obj, key, opts) {
+    const o = opts || {};
+    const input = h('input.input.num', { type: 'number', step: o.step || 0.1, min: o.min, max: o.max, value: Math.round((obj[key] || 0) * 100) / 100 });
+    input.addEventListener('change', () => {
+      let x = parseFloat(input.value);
+      if (!Number.isFinite(x)) x = 0;
+      if (o.min != null) x = Math.max(o.min, x);
+      if (o.max != null) x = Math.min(o.max, x);
+      obj[key] = x;
+      input.value = x;
+      commit();
+      renderPages();
+      if (o.after) o.after();
+    });
+    return input;
+  }
+  function objSlider(obj, key, min, max, factor, unit) {
+    const out = h('span.val');
+    const input = h('input', { type: 'range', min, max, step: 1, value: (obj[key] || 0) * factor });
+    const show = () => { out.textContent = Math.round(input.value) + unit; };
+    show();
+    input.addEventListener('input', () => { obj[key] = input.value / factor; show(); });
+    input.addEventListener('change', () => commit());
+    return h('div.slider', null, input, out);
+  }
+  function objCheck(obj, key, label) {
+    const c = h('input', { type: 'checkbox', checked: !!obj[key] });
+    c.addEventListener('change', () => { obj[key] = c.checked; commit(); renderPages(); renderRightPanel(); });
+    return h('label.check', null, c, ' ' + label);
+  }
+
+  function rightAudio(rp, tr) {
+    const tl = D.timeline(E.doc);
+    rp.appendChild(h('div.panel-title', null, 'Audio'));
+    rp.appendChild(h('div.kv', null, '♪ ', tr.name));
+    rp.appendChild(h('div.kv.muted', null, `Clip length ${fmtTime(tr.duration)} · video length ${fmtTime(tl.total)}`));
+    rp.appendChild(section('Timing',
+      field('Starts at (seconds into the video)', objNum(tr, 'start', { min: 0 })),
+      h('div.grid2', null,
+        field('Use clip from (s)', objNum(tr, 'trimStart', { min: 0, max: Math.max(0, tr.duration - 0.1) })),
+        field('Until (s, 0 = end)', objNum(tr, 'trimEnd', { min: 0, max: tr.duration }))),
+      objCheck(tr, 'loop', 'Repeat until the video ends')));
+    rp.appendChild(section('Sound',
+      field('Volume', objSlider(tr, 'volume', 0, 100, 100, '%')),
+      h('div.grid2', null, field('Fade in (s)', objNum(tr, 'fadeIn', { min: 0, max: 30 })), field('Fade out (s)', objNum(tr, 'fadeOut', { min: 0, max: 30 })))));
+    rp.appendChild(h('div.btn-row.text-btns', null,
+      h('button.tog', { on: { click: () => openPreview(tr.start) } }, '▶ Play from here'),
+      h('button.tog', { on: { click: () => { E.doc.audio = E.doc.audio.filter((a) => a.id !== tr.id); E.selAudio = null; commit(); renderAll(); } } }, 'Remove from video')));
+  }
+
+  function check(label, key) {
+    const sel = selected();
+    const c = h('input', { type: 'checkbox', checked: !!sel[0][key] });
+    c.addEventListener('change', () => { sel.forEach((e) => { e[key] = c.checked; }); commit(); renderCanvas(); renderRightPanel(); });
+    return h('label.check', null, c, ' ' + label);
+  }
+
+  function rightVideo(rp, sel) {
+    const el = sel[0];
+    const len = D.clipLength(el);
+    rp.appendChild(section('Video',
+      h('div.kv.muted', null, `Clip ${fmtTime(el.duration)} · playing ${fmtTime(len)} · scene ${fmtTime(page().duration)}`),
+      h('div.grid2', null,
+        field('Start at (s)', num('trimStart', { min: 0, step: 0.1 })),
+        field('End at (s, 0 = end)', num('trimEnd', { min: 0, step: 0.1 }))),
+      field('Volume', slider('volume', 0, 100, 1, { factor: 100, unit: '%' })),
+      check('Mute this clip', 'muted'),
+      check('Repeat if the scene is longer than the clip', 'loop'),
+      h('div.btn-row.text-btns', null,
+        h('button.tog', { on: { click: () => { page().duration = Math.max(0.5, Math.round(len * 10) / 10); commit(); renderAll(); } } }, 'Scene = clip length'),
+        h('button.tog', { on: { click: () => openPreview(D.timeline(E.doc).scenes[E.pageIndex].start) } }, '▶ Play'))));
+    rp.appendChild(section('Frame',
+      field('Fit in frame', select_('fit', [['cover', 'Fill frame (crop)'], ['contain', 'Show whole video'], ['stretch', 'Stretch']])),
+      h('div.grid2', null, field('Corner roundness', num('radius', { min: 0 })), field('Border width', num('strokeWidth', { min: 0 }))),
+      el.strokeWidth > 0 ? field('Border colour', color('stroke')) : null));
+    rp.appendChild(section('Adjust',
+      field('Brightness', slider('filters.brightness', 0, 200, 1, { unit: '%' })),
+      field('Contrast', slider('filters.contrast', 0, 200, 1, { unit: '%' })),
+      field('Saturation', slider('filters.saturation', 0, 200, 1, { unit: '%' })),
+      h('div.btn-row.text-btns', null, toggle('Black & white', 'filters.grayscale', 'Black & white'), toggle('Sepia', 'filters.sepia', 'Sepia'))));
+    rp.appendChild(h('p.muted.small', null, 'The canvas shows a still frame; press ▶ Play to watch the video with sound.'));
   }
 
   // ---------------------------------------------------------------- toolbar
@@ -820,7 +1090,10 @@
     const tog = (ic, label, on, fn) => h('button.chip' + (on ? '.on' : ''), { title: label, on: { click: fn } }, h('span.ic', { html: icon(ic) }), label);
     bar.appendChild(tog('magnet', 'Snap', E.snap, () => { E.snap = !E.snap; renderCtxBar(); }));
     bar.appendChild(tog('grid', 'Grid', E.grid, () => { E.grid = !E.grid; renderCtxBar(); renderOverlay(); }));
-    if (E.doc.format.kind === 'video') bar.appendChild(h('span.chip.info', { title: 'Timeline video editing is part of Phase 3' }, 'Video frame design · timeline editing arrives in Phase 3'));
+    if (isVideoDoc()) {
+      bar.appendChild(h('button.chip.on', { title: 'Play the whole video with sound', on: { click: () => openPreview(0) } }, '▶ Play video'));
+      bar.appendChild(h('span.chip.info', null, 'Each page is a scene · add clips and music from Uploads'));
+    }
     if (E.doc.format.kind === 'print') bar.appendChild(h('span.chip.info', { title: 'Keep important content inside the dashed line' }, 'Dashed line = safe area for printing'));
     const sel = selected();
     if (sel.length) {
@@ -924,11 +1197,34 @@
 
   function leftUploads(lp) {
     lp.appendChild(h('h4', null, 'Uploads'));
-    lp.appendChild(h('button.btn.primary.wide', { on: { click: () => $('file-input').click() } }, 'Upload images'));
-    lp.appendChild(h('p.muted.small', null, 'Or drag image files from Explorer onto the page, or paste with Ctrl+V.'));
-    const ids = Object.keys(E.doc.assets || {});
-    if (!ids.length) { lp.appendChild(h('p.muted', null, 'No images in this design yet.')); return; }
-    lp.appendChild(h('h4', null, 'In this design'));
+    lp.appendChild(h('button.btn.primary.wide', { on: { click: () => pickFiles(handleFiles) } }, h('span.ic', { html: icon('image') }), 'Upload images'));
+    lp.appendChild(h('button.btn.primary.wide', { on: { click: uploadMedia } }, h('span.ic', { html: icon('video') }), 'Upload video or audio'));
+    lp.appendChild(h('p.muted.small', null, 'Video: MP4, MOV, WebM, MKV, AVI, WMV. Audio: MP3, WAV, M4A, AAC, OGG, FLAC. You can also drag files from Explorer onto the page.'));
+    const media = E.doc.media || [];
+    const vids = media.filter((m) => m.kind === 'video');
+    const auds = media.filter((m) => m.kind === 'audio');
+    if (vids.length) {
+      lp.appendChild(h('h4', null, 'Videos'));
+      const grid = h('div.up-grid');
+      for (const m of vids) {
+        grid.appendChild(h('button.up-item.video', { title: `Add “${m.name}” to the page`, on: { click: () => addVideoElement(m) } },
+          m.poster ? h('img', { src: resolveSrcForEditor(m.poster), draggable: false }) : h('span.ic', { html: icon('video') }),
+          h('span.dur', null, fmtTime(m.duration))));
+      }
+      lp.appendChild(grid);
+    }
+    if (auds.length) {
+      lp.appendChild(h('h4', null, 'Audio'));
+      for (const m of auds) {
+        lp.appendChild(h('button.audio-item', { title: `Add “${m.name}” to the timeline`, on: { click: () => addAudioTrack(m) } },
+          h('span.note', null, '♪'), h('span.audio-name', null, m.name), h('span.muted.small', null, fmtTime(m.duration))));
+      }
+    }
+    const posters = new Set(media.map((m) => m.poster).filter(Boolean).map((p) => p.slice(6)));
+    for (const pg of E.doc.pages) for (const e of pg.elements) if (e.type === 'video' && e.poster) posters.add(e.poster.slice(6));
+    const ids = Object.keys(E.doc.assets || {}).filter((id) => !posters.has(id));
+    if (!ids.length) { if (!media.length) lp.appendChild(h('p.muted', null, 'Nothing uploaded to this design yet.')); return; }
+    lp.appendChild(h('h4', null, 'Images'));
     const grid = h('div.up-grid');
     for (const id of ids) {
       const src = 'asset:' + id;
@@ -986,7 +1282,7 @@
       const row = h('div.layer' + (E.sel.includes(el.id) ? '.active' : '') + (el.hidden ? '.dim' : ''), {
         on: { click: (e) => select([el.id], e.shiftKey) }
       },
-        h('span.layer-type', { html: icon(el.type === 'text' ? 'text' : el.type === 'image' ? 'image' : 'elements') }),
+        h('span.layer-type', { html: icon(el.type === 'text' ? 'text' : el.type === 'image' ? 'image' : el.type === 'video' ? 'video' : 'elements') }),
         h('span.layer-name', null, label, el.groupId ? h('span.tag', null, 'group') : null),
         h('button.icon-btn', { title: el.hidden ? 'Show' : 'Hide', html: icon(el.hidden ? 'eyeOff' : 'eye'), on: { click: (e) => { e.stopPropagation(); el.hidden = !el.hidden; if (el.hidden) E.sel = E.sel.filter((x) => x !== el.id); commit(); renderAll(); } } }),
         h('button.icon-btn', { title: el.locked ? 'Unlock' : 'Lock', html: icon(el.locked ? 'lock' : 'unlock'), on: { click: (e) => { e.stopPropagation(); el.locked = !el.locked; commit(); renderAll(); } } }));
@@ -1017,7 +1313,7 @@
   }
   function defaultFileHandler() {
     const input = $('file-input');
-    if (input.files.length) addImageFiles(input.files);
+    if (input.files.length) handleFiles(input.files);
   }
 
   // ---------------------------------------------------------------- right panel (properties)
@@ -1112,12 +1408,17 @@
     const rp = $('right-panel');
     rp.innerHTML = '';
     const sel = selected();
+    if (!sel.length && E.selAudio) {
+      const tr = E.doc.audio.find((a) => a.id === E.selAudio);
+      if (tr) { rightAudio(rp, tr); return; }
+      E.selAudio = null;
+    }
     if (!sel.length) { rightPage(rp); return; }
     const one = sel.length === 1 ? sel[0] : null;
     const types = new Set(sel.map((e) => e.type));
     const sameType = types.size === 1 ? sel[0].type : null;
 
-    rp.appendChild(h('div.panel-title', null, one ? (one.type === 'text' ? 'Text' : one.type === 'image' ? 'Image' : one.type === 'line' ? 'Line' : 'Shape') : `${sel.length} items`));
+    rp.appendChild(h('div.panel-title', null, one ? ({ text: 'Text', image: 'Image', line: 'Line', video: 'Video' }[one.type] || 'Shape') : `${sel.length} items`));
 
     // quick actions
     const locked = sel.some((e) => e.locked);
@@ -1133,6 +1434,7 @@
     if (sameType === 'shape') rightShape(rp, sel);
     if (sameType === 'line') rightLine(rp, sel);
     if (sameType === 'image') rightImage(rp, sel);
+    if (sameType === 'video') rightVideo(rp, sel);
 
     // position
     if (one) {
@@ -1270,6 +1572,13 @@
       h('div.kv.muted', null, `${formats.label(f)} · ${Math.round(s.w)} × ${Math.round(s.h)} px editor · ${formats.aspectLabel(f)}`),
       f.kind === 'print' ? h('div.kv.muted', null, `Print: ${(s.w / 96 * 300).toFixed(0)} × ${(s.h / 96 * 300).toFixed(0)} px at 300 DPI · ${f.bleedMm || 0} mm bleed available`) : null,
       h('button.btn.wide', { on: { click: openResizeDialog } }, 'Resize design…')));
+    if (isVideoDoc()) {
+      const tl = D.timeline(E.doc);
+      rp.appendChild(section('Scene',
+        field('Scene length (seconds)', objNum(page(), 'duration', { min: 0.5, max: 3600, after: renderRightPanel })),
+        h('div.kv.muted', null, `Starts at ${fmtTime(tl.scenes[E.pageIndex].start)} · whole video ${fmtTime(tl.total)}`),
+        h('button.btn.wide', { on: { click: () => openPreview(tl.scenes[E.pageIndex].start) } }, '▶ Play from this scene')));
+    }
     const typeSel = h('select.input', null, h('option', { value: 'solid' }, 'Solid colour'), h('option', { value: 'gradient' }, 'Gradient'), h('option', { value: 'image' }, 'Image'));
     typeSel.value = bg.type;
     typeSel.addEventListener('change', () => {
@@ -1360,6 +1669,13 @@
     if (ctrl && k === '0') { e.preventDefault(); zoomToFit(); return; }
     if (ctrl && k === ']') { e.preventDefault(); cmd.arrange(e.shiftKey ? 'front' : 'forward'); return; }
     if (ctrl && k === '[') { e.preventDefault(); cmd.arrange(e.shiftKey ? 'back' : 'backward'); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && E.selAudio && !E.sel.length) {
+      e.preventDefault();
+      E.doc.audio = E.doc.audio.filter((a) => a.id !== E.selAudio);
+      E.selAudio = null;
+      commit(); renderAll();
+      return;
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); cmd.delete(); return; }
     if (e.key === 'Escape') { select([]); return; }
     if (e.key === 'Enter' && E.sel.length === 1 && byId(E.sel[0]).type === 'text') { e.preventDefault(); startTextEdit(E.sel[0]); return; }
@@ -1421,7 +1737,7 @@
     ws.addEventListener('drop', (e) => {
       e.preventDefault();
       ws.classList.remove('drop');
-      if (e.dataTransfer.files.length) addImageFiles(e.dataTransfer.files, pointerToPage(e));
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files, pointerToPage(e));
     });
 
     const ta = $('text-editor');
@@ -1448,6 +1764,7 @@
     E.pageIndex = 0;
     E.sel = [];
     E.editingText = null;
+    E.selAudio = null;
     E.onExit = onExit;
     E.history.reset(D.snapshot(E.doc));
     E.dirty = !filePath;
@@ -1488,6 +1805,6 @@
   root.DS.editor = {
     open, exit, save: () => save(true), saveCopyAs, isOpen, isDirty: () => E.dirty,
     exportDialog: () => E.doc && exporter.openDialog(E.doc, E.pageIndex),
-    _state: E, _cmd: cmd, _addText: addText, _addShape: addShape, _applyTemplate: applyTemplate, _addImageFiles: addImageFiles
+    _state: E, _cmd: cmd, _addText: addText, _addShape: addShape, _applyTemplate: applyTemplate, _addImageFiles: addImageFiles, _handleFiles: handleFiles
   };
 })(self);

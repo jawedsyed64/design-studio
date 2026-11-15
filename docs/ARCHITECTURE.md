@@ -3,6 +3,7 @@
 ```
 main/
   main.js        Electron main process: window, menu, file system, dialogs, PDF printing
+  media.js       Video/audio: media folder, dsmedia:// streaming protocol, ffmpeg conversion and MP4 encoding
   preload.js     The only bridge to the renderer (contextBridge `window.api`)
 renderer/
   index.html     App shell
@@ -13,6 +14,7 @@ renderer/
   js/templates.js Starter templates as size-adaptive layout functions
   js/ui.js       Icons, DOM helper, modals, toasts, text measurement
   js/exporter.js PNG/JPEG rasterisation, SVG, PDF, export dialog
+  js/video.js    Clip import (duration, poster), playback compositor, preview player, MP4 export
   js/editor.js   Canvas interaction, panels, pages, autosave
   js/app.js      Dashboard, projects, settings, roadmap pages
 test/            Node unit tests for the pure modules (formats, model, renderer, templates)
@@ -32,3 +34,10 @@ test/            Node unit tests for the pure modules (formats, model, renderer,
 - **New size:** add one line to `FORMATS` in `formats.js`.
 - **New template:** add an object with `build(w, h)` to `templates.js`. The unit tests render every template at every size.
 - **AI features (Phase 2):** API calls belong in the main process, where keys stay out of the renderer. Expose them through `preload.js`. The AI assistant should send edit commands through the existing `cmd` functions, so every AI change can be undone.
+
+## Video
+
+- Uploaded clips are **copied** into `Design Studio Projects/media/` and referenced as `media:<file>`. They are not embedded in the project file, because videos are large. The renderer streams them through the `dsmedia://` protocol, which supports Range requests so seeking works and sends CORS headers so frames can be drawn on a canvas.
+- Each page is a scene lasting `page.duration` seconds. A `video` element shows its poster frame in the editor. `doc.audio` holds the music and voice tracks for the timeline.
+- **Compositor** (`video.js`): it splits each page into still layers (rendered once from the page SVG) and live video layers, then draws them in order on a canvas. Sound goes through Web Audio, with gain nodes handling volume and fades.
+- **MP4 export:** the canvas and the audio stream are recorded in real time with `MediaRecorder` (WebM) and streamed to disk in chunks. ffmpeg (`ffmpeg-static`, unpacked from the asar) then converts the recording to H.264/AAC MP4 with `+faststart`.

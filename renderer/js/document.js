@@ -19,6 +19,7 @@
     return {
       id: uid(),
       background: background || { type: 'solid', color: '#ffffff', color2: '#4f46e5', angle: 135 },
+      duration: 5, // seconds this page lasts when the design is played as a video
       elements: []
     };
   }
@@ -34,6 +35,9 @@
       format: clone(format),
       pages: [newPage()],
       assets: {}, // id -> data URL of an uploaded image; elements refer to them as 'asset:<id>'
+      media: [], // uploaded video/audio clips: { ref:'media:<file>', name, kind, duration, poster, w, h }
+      audio: [], // audio tracks on the video timeline
+
       createdAt: now,
       updatedAt: now,
       thumbnail: null
@@ -71,6 +75,15 @@
         stroke: '#1f2333', strokeWidth: 6, strokeDash: 'solid', startCap: 'none', endCap: 'none'
       }, o);
     },
+    video(o) {
+      return Object.assign(clone(BASE), {
+        type: 'video', name: 'Video', w: 640, h: 360,
+        src: '', poster: '', naturalW: 640, naturalH: 360, duration: 0,
+        trimStart: 0, trimEnd: 0, volume: 1, muted: false, loop: true,
+        fit: 'cover', radius: 0, stroke: '#ffffff', strokeWidth: 0,
+        filters: { brightness: 100, contrast: 100, saturation: 100, blur: 0, grayscale: false, sepia: false }
+      }, o);
+    },
     image(o) {
       return Object.assign(clone(BASE), {
         type: 'image', name: 'Image', w: 400, h: 300,
@@ -80,6 +93,39 @@
       }, o);
     }
   };
+
+  // An audio track on the timeline. start = seconds from the beginning of the video.
+  function createAudioTrack(props) {
+    return Object.assign({
+      id: uid(), src: '', name: 'Audio', duration: 0, start: 0, trimStart: 0, trimEnd: 0,
+      volume: 1, fadeIn: 0, fadeOut: 0, loop: false
+    }, props || {});
+  }
+
+  // Length in seconds of the clip part that is used.
+  function clipLength(item) {
+    const end = item.trimEnd > 0 ? item.trimEnd : item.duration;
+    return Math.max(0, end - (item.trimStart || 0));
+  }
+
+  // Scenes: one per page, played one after another.
+  function timeline(doc) {
+    let t = 0;
+    const scenes = doc.pages.map((p, i) => {
+      const d = Math.max(0.5, +p.duration || 5);
+      const sc = { index: i, start: t, duration: d };
+      t += d;
+      return sc;
+    });
+    return { scenes, total: t };
+  }
+
+  function hasMedia(doc) {
+    return (doc.audio && doc.audio.length > 0) || doc.pages.some((p) => p.elements.some((e) => e.type === 'video'));
+  }
+  function isVideoDoc(doc) {
+    return doc.format.kind === 'video' || hasMedia(doc);
+  }
 
   function createElement(type, props) {
     const f = FACTORIES[type];
@@ -244,8 +290,9 @@
     const take = (s) => { if (typeof s === 'string' && s.startsWith('asset:')) used.add(s.slice(6)); };
     for (const p of doc.pages) {
       if (p.background) take(p.background.src);
-      for (const e of p.elements) take(e.src);
+      for (const e of p.elements) { take(e.src); take(e.poster); }
     }
+    for (const m of doc.media || []) take(m.poster);
     return used;
   }
 
@@ -266,11 +313,15 @@
   function migrate(doc) {
     if (!doc.version) doc.version = 1;
     if (!doc.assets) doc.assets = {};
+    if (!Array.isArray(doc.media)) doc.media = [];
+    if (!Array.isArray(doc.audio)) doc.audio = [];
+    doc.audio = doc.audio.map((a) => createAudioTrack(a));
     if (!doc.id) doc.id = uid();
     if (!doc.name) doc.name = 'Untitled design';
     for (const p of doc.pages) {
       if (!p.id) p.id = uid();
       if (!p.background) p.background = { type: 'solid', color: '#ffffff' };
+      if (!(p.duration > 0)) p.duration = 5;
       p.elements = (p.elements || []).map((e) => {
         const def = FACTORIES[e.type] ? FACTORIES[e.type]({}) : clone(BASE);
         const merged = Object.assign(def, e);
@@ -310,7 +361,8 @@
   const api = {
     DOC_VERSION, uid, clone, newPage, newDocument, createElement, bounds, unionBounds, indexOf,
     expandGroups, group, ungroup, reorder, duplicate, remove, align, distribute, resizeDocument, migrate, History,
-    addAsset, resolveAsset, usedAssets, pruneAssets, snapshot
+    addAsset, resolveAsset, usedAssets, pruneAssets, snapshot,
+    createAudioTrack, clipLength, timeline, hasMedia, isVideoDoc
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.DS = root.DS || {}).doc = api;
